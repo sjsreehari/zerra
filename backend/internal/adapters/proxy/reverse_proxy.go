@@ -43,6 +43,16 @@ func Forward(c *gin.Context, apiBaseURL string) error {
 	}
 
 	reverseProxy := httputil.NewSingleHostReverseProxy(target)
+	originalDirector := reverseProxy.Director
+	reverseProxy.Director = func(request *http.Request) {
+		// Vercel selects a deployment from the HTTP Host header. The incoming
+		// subdomain (for example qroasis.127.0.0.1) is only meaningful to this
+		// gateway, so the upstream must receive the host from api_base_url.
+		originalHost := request.Host
+		originalDirector(request)
+		request.Host = target.Host
+		request.Header.Set("X-Forwarded-Host", originalHost)
+	}
 	reverseProxy.ErrorHandler = func(writer http.ResponseWriter, request *http.Request, proxyErr error) {
 		writer.Header().Set("Content-Type", "application/json")
 		writer.WriteHeader(502)
