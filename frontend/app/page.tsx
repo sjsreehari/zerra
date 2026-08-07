@@ -1,23 +1,17 @@
-import Navbar from "./components/Navbar";
-import HeroSection from "./components/HeroSection";
-import FeaturesSection from "./components/FeaturesSection";
-import HowItWorksSection from "./components/HowItWorksSection";
-import DashboardPreview from "./components/DashboardPreview";
-import ArchitectureSection from "./components/ArchitectureSection";
-import Footer from "./components/Footer";
-
 export default function Home() {
   return (
-    <div className="relative flex flex-col flex-1">
-      <Navbar />
-      <main className="flex-1">
-        <HeroSection />
-        <FeaturesSection />
-        <HowItWorksSection />
-        <DashboardPreview />
-        <ArchitectureSection />
-      </main>
-      <Footer />
-    </div>
+    <main className="hero">
+      <div className="hero-panels" aria-hidden="true" />
+      <div className="hero-noise" aria-hidden="true" />
+      <nav className="nav" aria-label="Primary navigation">
+        <a href="#home">Home</a><a href="#why-zerra">Why Zerra</a><a href="#blog">Blog</a><a href="#about">About</a>
+      </nav>
+      <section className="hero-content" id="home">
+        <h1>Authorisation<br />That Understands Intent</h1>
+        <p>Protect AI agents, users, and services with identity-aware authorization that understands behavior, not just requests.</p>
+        <a className="access-button" href="mailto:hello@zerra.dev"><span>Get Early Access</span><span className="arrow" aria-hidden="true">↗</span></a>
+      </section>
+      <p className="principles">Identity-aware <span>•</span> Sequence-aware <span>•</span> Explainable by Design</p>
+    </main>
   );
 }
