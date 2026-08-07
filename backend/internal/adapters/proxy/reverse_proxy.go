@@ -42,6 +42,15 @@ func Forward(c *gin.Context, apiBaseURL string) error {
 		return errInvalidUpstream
 	}
 
+	incomingHost := c.Request.Host
+	incomingScheme := "http"
+	if c.Request.TLS != nil {
+		incomingScheme = "https"
+	}
+	if forwardedProto := c.GetHeader("X-Forwarded-Proto"); forwardedProto != "" {
+		incomingScheme = forwardedProto
+	}
+
 	reverseProxy := httputil.NewSingleHostReverseProxy(target)
 	originalDirector := reverseProxy.Director
 	reverseProxy.Director = func(request *http.Request) {
@@ -52,6 +61,25 @@ func Forward(c *gin.Context, apiBaseURL string) error {
 		originalDirector(request)
 		request.Host = target.Host
 		request.Header.Set("X-Forwarded-Host", originalHost)
+	}
+	// Some upstream applications respond with an absolute redirect to their own
+	// canonical host. Keep that redirect inside the gateway so clients never
+	// navigate from qroasis.127.0.0.1:8080 to the configured api_base_url.
+	reverseProxy.ModifyResponse = func(response *http.Response) error {
+		location := response.Header.Get("Location")
+		if location == "" {
+			return nil
+		}
+
+		redirectURL, parseErr := url.Parse(location)
+		if parseErr != nil || redirectURL.Host == "" || !strings.EqualFold(redirectURL.Host, target.Host) {
+			return nil
+		}
+
+		redirectURL.Scheme = incomingScheme
+		redirectURL.Host = incomingHost
+		response.Header.Set("Location", redirectURL.String())
+		return nil
 	}
 	reverseProxy.ErrorHandler = func(writer http.ResponseWriter, request *http.Request, proxyErr error) {
 		writer.Header().Set("Content-Type", "application/json")
