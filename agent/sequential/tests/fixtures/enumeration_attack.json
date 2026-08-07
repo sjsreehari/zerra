@@ -1,0 +1,8 @@
+[
+  {"id":"a1","identity_id":"attacker","timestamp":"2026-01-01T10:00:00+00:00","endpoint":"/invoices/101","method":"GET","object_id":"101","object_type":"invoice","response_fields":["id"]},
+  {"id":"a2","identity_id":"attacker","timestamp":"2026-01-01T10:00:04+00:00","endpoint":"/invoices/102","method":"GET","object_id":"102","object_type":"invoice","response_fields":["id"]},
+  {"id":"a3","identity_id":"attacker","timestamp":"2026-01-01T10:00:07+00:00","endpoint":"/invoices/103","method":"GET","object_id":"103","object_type":"invoice","response_fields":["id"]},
+  {"id":"a4","identity_id":"attacker","timestamp":"2026-01-01T10:00:09+00:00","endpoint":"/invoices/104","method":"GET","object_id":"104","object_type":"invoice","response_fields":["id"]},
+  {"id":"a5","identity_id":"attacker","timestamp":"2026-01-01T10:00:10+00:00","endpoint":"/invoices/105","method":"GET","object_id":"105","object_type":"invoice","response_fields":["id","ssn"]},
+  {"id":"a6","identity_id":"attacker","timestamp":"2026-01-01T10:00:10.5+00:00","endpoint":"/invoices/export","method":"GET","response_fields":["id","ssn","salary","email","total","status"]}
+]
