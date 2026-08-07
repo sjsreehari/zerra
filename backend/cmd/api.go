@@ -20,7 +20,15 @@ var startTime time.Time
 type application struct {
 	config config
 	db     *sql.DB
-	// auth   authMiddleware.AuthMiddleware
+}
+
+type config struct {
+	addr string
+	db   dbConfig
+}
+
+type dbConfig struct {
+	dsn string
 }
 
 func (app *application) mount() http.Handler {
@@ -122,13 +130,4 @@ func (app *application) run(h http.Handler) error {
 	log.Printf("server has started at %s", app.config.addr)
 
 	return srv.ListenAndServe()
-}
-
-type config struct {
-	addr string
-	db   dbConfig
-}
-
-type dbConfig struct {
-	dsn string
 }

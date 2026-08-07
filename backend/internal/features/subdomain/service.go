@@ -1,6 +1,8 @@
 package subdomain
 
-import "context"
+import (
+	"context"
+)
 
 type Service interface {
 	CreateNewReverseProxy(ctx context.Context, req ExecuteInstanceRequest) (ReverseProxy, error)
@@ -21,7 +23,12 @@ func (s *service) CreateNewReverseProxy(ctx context.Context, req ExecuteInstance
 		ApiBaseUrl: req.ApiBaseUrl,
 	}
 
-	return s.repo.CreateNewReverseProxy(ctx, proxy)
+	registered, err := s.repo.CreateNewReverseProxy(ctx, proxy)
+	if err != nil {
+		return ReverseProxy{}, err
+	}
+
+	return registered, nil
 }
 
 func (s *service) FindBySubdomain(ctx context.Context, subdomain string) (ReverseProxy, error) {

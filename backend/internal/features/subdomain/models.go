@@ -1,6 +1,5 @@
 package subdomain
 
-
 type ExecuteInstanceRequest struct {
 	Subdomain  string `json:"subdomain"`
 	ApiBaseUrl string `json:"api_base_url"`
