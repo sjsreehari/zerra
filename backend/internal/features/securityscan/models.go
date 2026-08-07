@@ -1,6 +1,9 @@
 package securityscan
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 type Mode string
 const ( Passive Mode = "passive"; SafeActive Mode = "safe_active" )
@@ -19,6 +22,4 @@ type ScanReport struct { Findings []Finding `json:"findings"`; RequestsUsed int 
 type Limits struct { MaxDuration time.Duration; RequestBudget, MaxWorkers, RateLimitPerSecond int; MaxResponseBytes int64; ConnectTimeout, RequestTimeout time.Duration }
 func DefaultLimits() Limits { return Limits{MaxDuration: 60*time.Second, RequestBudget:80, MaxWorkers:4, RateLimitPerSecond:5, MaxResponseBytes:1<<20, ConnectTimeout:3*time.Second, RequestTimeout:8*time.Second} }
 type TargetGuard interface { Validate(targetURL string) error }
-type Runner interface { Run(ctx Context, plan ScanPlan) (ScanReport, error) }
-// Context keeps the runner interface simple while retaining context cancellation.
-type Context interface { Done() <-chan struct{}; Err() error }
+type Runner interface { Run(ctx context.Context, plan ScanPlan) (ScanReport, error) }
