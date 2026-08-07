@@ -9,9 +9,9 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	// routers "github.com/DeveloperAromal/iPROMS/internal/interfaces"
-	// superUserModel "github.com/DeveloperAromal/iPROMS/internal/features/su"
-	// orgModel "github.com/DeveloperAromal/iPROMS/internal/features/organizations"
+	routers "github.com/sjsreehari/zerra/internal/interfaces"
+	containerModule "github.com/sjsreehari/zerra/internal/features/container"
+	proxyModule "github.com/sjsreehari/zerra/internal/features/subdomain"
 )
 
 var startTime time.Time
@@ -63,18 +63,18 @@ func (app *application) mount() http.Handler {
 		})
 	})
 
-	// api := r.Group("/api/v1")
+	api := r.Group("/api/v1")
 
-	// modules := []routers.RouterInterface{
-	// 	superUserModel.NewRouter(app.db),
-	// 	orgModel.NewRouter(app.db),
-	// }
+	modules := []routers.RouterInterface{
+		containerModule.NewRouter(app.db),
+		proxyModule.NewRouter(app.db),
+	}
 
-	// for _, m := range modules {
-	// 	group := api.Group(m.BasePath())
+	for _, m := range modules {
+		group := api.Group(m.BasePath())
 
-	// 	m.Register(group)
-	// }
+		m.Register(group)
+	}
 
 	return r
 

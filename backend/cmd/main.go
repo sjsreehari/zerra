@@ -13,8 +13,8 @@ import (
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 
-	databseAdapter "github.com/DeveloperAromal/magma/internal/adapters/postgresql"
-	"github.com/DeveloperAromal/magma/pkg/logger"
+	databseAdapter "github.com/sjsreehari/zerra/internal/adapters/postgresql"
+	"github.com/sjsreehari/zerra/pkg/logger"
 	// "github.com/DeveloperAromal/iPROMS/internal/scheduler"
 	// authMiddleware "github.com/DeveloperAromal/iPROMS/internal/features/auth/middleware"
 	// encryptionPkg "github.com/DeveloperAromal/iPROMS/pkg/encryption"
