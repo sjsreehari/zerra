@@ -2,6 +2,8 @@
 
 from statistics import mean
 from typing import Any
+import re
+from fnmatch import fnmatchcase
 
 from .config import SENSITIVE_FIELDS
 from .models import SequenceWindow
@@ -12,10 +14,10 @@ def _numeric_object_ids(window: SequenceWindow) -> list[int]:
     for event in window.events:
         if event.object_id is None:
             continue
-        try:
-            values.append(int(str(event.object_id)))
-        except ValueError:
+        match = re.search(r"(\d+)$", str(event.object_id))
+        if match is None:
             return []
+        values.append(int(match.group(1)))
     return values
 
 
@@ -34,7 +36,9 @@ def extract_features(window: SequenceWindow) -> dict[str, Any]:
     endpoints = {event.endpoint for event in events}
     contract = next((event.scope_contract for event in events if event.scope_contract is not None), None)
     agent_identity = any(event.identity_type.lower() in {"agent", "mcp", "mcp_server"} for event in events)
-    scope_violation = bool(agent_identity and contract is not None and any(event.endpoint not in contract for event in events))
+    scope_violation = bool(agent_identity and contract is not None and any(
+        not any(fnmatchcase(event.endpoint, pattern) for pattern in contract) for event in events
+    ))
     return {
         "window_size": len(events),
         "distinct_object_count": len(set(object_ids)),
