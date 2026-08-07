@@ -9,10 +9,11 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	proxyAdapter "github.com/sjsreehari/zerra/internal/adapters/proxy"
-	containerModule "github.com/sjsreehari/zerra/internal/features/container"
-	proxyModule "github.com/sjsreehari/zerra/internal/features/subdomain"
-	routers "github.com/sjsreehari/zerra/internal/interfaces"
+	"github.com/DeveloperAromal/magma/internal/adapters/scanner"
+	"github.com/DeveloperAromal/magma/internal/features/securityscan"
+	// routers "github.com/DeveloperAromal/iPROMS/internal/interfaces"
+	// superUserModel "github.com/DeveloperAromal/iPROMS/internal/features/su"
+	// orgModel "github.com/DeveloperAromal/iPROMS/internal/features/organizations"
 )
 
 var startTime time.Time
@@ -102,6 +103,20 @@ func (app *application) mount() http.Handler {
 	})
 
 	api := r.Group("/api/v1")
+	// Targets are resolved only through the proxy table. The scanner runner has
+	// no client-controlled image, command, mount, headers, or target URL.
+	var runner securityscan.Runner
+	dockerClient, err := scanner.NewDockerClient()
+	if err != nil {
+		runner = securityscan.UnavailableRunner{Err: err}
+	} else {
+		runner = scanner.NewDockerRunner(dockerClient)
+	}
+	scanService := securityscan.NewService(
+		securityscan.PostgresRepository{DB: app.db}, scanner.NewTargetGuard(), runner,
+		securityscan.DefaultLimits(), os.Getenv("SAFE_ACTIVE_SCANS_ENABLED") == "true",
+	)
+	securityscan.Register(api.Group("/security-scans"), securityscan.NewHandler(scanService))
 
 	modules := []routers.RouterInterface{
 		containerModule.NewRouter(app.db),
