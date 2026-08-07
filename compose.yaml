@@ -1,0 +1,57 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: sentra
+      POSTGRES_USER: sentra
+      POSTGRES_PASSWORD: sentra-local-only
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sentra -d sentra"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - ./backend/migrations:/docker-entrypoint-initdb.d:ro
+      - ./docker/postgres/003_seed_demo_proxy.sql:/docker-entrypoint-initdb.d/003_seed_demo_proxy.sql:ro
+
+  inference:
+    build:
+      context: .
+      dockerfile: agent/Dockerfile
+    ports: ["8000:8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  upstream:
+    build:
+      context: .
+      dockerfile: agent/Dockerfile
+    command: ["python", "-m", "uvicorn", "agent.upstream_api:app", "--host", "0.0.0.0", "--port", "8001"]
+    expose: ["8001"]
+
+  gateway:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      DB_CONN_STR: postgres://sentra:sentra-local-only@postgres:5432/sentra?sslmode=disable
+      SENTRA_INFERENCE_URL: http://inference:8000
+      BASE_DOMAIN: gateway.test
+      ENVIRONMENT: development
+    ports: ["8080:8080"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      inference: { condition: service_healthy }
+
+  dashboard:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_SENTRA_URL: http://127.0.0.1:8000
+    ports: ["3000:3000"]
+    depends_on:
+      inference: { condition: service_healthy }

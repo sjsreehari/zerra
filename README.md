@@ -227,6 +227,45 @@ Optionally set `NEXT_PUBLIC_SENTRA_URL=http://127.0.0.1:8000` before starting th
 frontend. The dashboard polls the local inference service for identity trust,
 metrics, and Risk Cards, and exposes the identity kill switch.
 
+## One-command container pipeline and real flow test
+
+The Compose stack models the complete local traffic path:
+
+```text
+Client request with Host qroasis.gateway.test
+  -> Go gateway :8080
+  -> Python SENTRA inference :8000
+  -> allow: private protected upstream :8001
+  -> block/step-up: Risk Card + metrics, with no upstream request
+  -> dashboard :3000 reads metrics, identities, and Risk Cards
+```
+
+Docker Desktop's **CLI integration must be enabled** and `docker` must be visible
+from the terminal. Run:
+
+```powershell
+docker compose up --build -d
+python tests/e2e_pipeline.py
+docker compose down -v
+```
+
+The E2E script performs real HTTP requests—not syntax checks—and verifies:
+
+1. a permitted human request reaches the private upstream through Go;
+2. a cross-tenant request is blocked before forwarding;
+3. an out-of-scope agent call is blocked before forwarding;
+4. rapid invoice enumeration is eventually blocked;
+5. metrics and at least one Risk Card are emitted by the inference service.
+
+For manual gateway testing, use a host header or host mapping:
+
+```powershell
+curl -H "Host: qroasis.gateway.test" -H "Authorization: Bearer demo-human-token" http://127.0.0.1:8080/invoices/inv-a-001
+```
+
+The upstream service has no published host port. It is available only on the
+internal Compose network, forcing all external traffic through the Go gateway.
+
 The current frontend is the default Next.js screen. The next product milestone is
 to replace it with the SENTRA dashboard: live request feed, per-identity trust
 score, Risk Card feed, attack metrics, and agent kill-switch.
