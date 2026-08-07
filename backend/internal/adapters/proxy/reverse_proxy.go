@@ -2,6 +2,7 @@
 package proxy
 
 import (
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -15,16 +16,23 @@ import (
 // local development base domain is 127.0.0.1, so qroasis.127.0.0.1:8080 becomes
 // qroasis. Set BASE_DOMAIN for deployed environments, for example magma.com.
 func SubdomainFromHost(host string) string {
-	host = strings.ToLower(strings.TrimSpace(host))
-	if colon := strings.LastIndex(host, ":"); colon > -1 {
-		host = host[:colon]
-	}
+	host = hostname(host)
 
 	baseDomain := os.Getenv("BASE_DOMAIN")
 	if baseDomain == "" {
 		baseDomain = "127.0.0.1"
 	}
-	baseDomain = strings.ToLower(strings.Split(baseDomain, ":")[0])
+	baseDomain = hostname(baseDomain)
+
+	// A hostname such as customer.127.0.0.1 is not normally resolvable by
+	// public DNS. nip.io (and compatible services) resolves it to 127.0.0.1,
+	// so accept it as the zero-configuration local-development equivalent.
+	for _, suffix := range []string{".nip.io", ".xip.io", ".sslip.io"} {
+		if strings.HasSuffix(host, suffix) {
+			host = strings.TrimSuffix(host, suffix)
+			break
+		}
+	}
 
 	suffix := "." + baseDomain
 	if !strings.HasSuffix(host, suffix) {
@@ -32,6 +40,14 @@ func SubdomainFromHost(host string) string {
 	}
 
 	return strings.TrimSuffix(host, suffix)
+}
+
+func hostname(host string) string {
+	host = strings.ToLower(strings.TrimSpace(host))
+	if parsedHost, _, err := net.SplitHostPort(host); err == nil {
+		return parsedHost
+	}
+	return strings.Trim(host, "[]")
 }
 
 // Forward proxies the current request to apiBaseURL while retaining the original
