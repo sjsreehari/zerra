@@ -1,7 +1,7 @@
 package securityscan
 
 import (
- "context"; "errors"; "sync"; "time"
+ "context"; "errors"; "strings"; "sync"; "time"
 )
 var ErrSafeActiveDisabled=errors.New("safe_active scans are disabled")
 var ErrCannotCancel=errors.New("only queued or running scans can be cancelled")
@@ -15,5 +15,5 @@ func(s *Service) Cancel(ctx context.Context,id string)error{job,err:=s.repo.GetJ
 func(s *Service) Get(ctx context.Context,id string)(Job,error){return s.repo.GetJob(ctx,id)}
 func(s *Service) Findings(ctx context.Context,id string)([]Finding,error){return s.repo.GetFindings(ctx,id)}
 func sanitize(in []Finding)[]Finding{out:=make([]Finding,0,len(in));for _,f:=range in{f.Evidence=redactEvidence(f.Evidence);out=append(out,f)};return out}
-func redactEvidence(e map[string]any)map[string]any{out:=map[string]any{};for k,v:=range e{lower:=k;if containsSecret(lower){out[k]="[REDACTED]";continue};out[k]=v};return out}
-func containsSecret(s string)bool{for _,needle:=range []string{"token","cookie","secret","password","authorization","body","ssn","salary","api_key"}{if len(s)>=len(needle){for i:=0;i<=len(s)-len(needle);i++{if s[i:i+len(needle)]==needle{return true}}}};return false}
+func redactEvidence(e map[string]any)map[string]any{out:=map[string]any{};for k,v:=range e{if containsSecret(strings.ToLower(k)){out[k]="[REDACTED]";continue};if nested,ok:=v.(map[string]any);ok{out[k]=redactEvidence(nested)}else{out[k]=v}};return out}
+func containsSecret(s string)bool{for _,needle:=range []string{"token","cookie","secret","password","authorization","body","ssn","salary","api_key"}{if strings.Contains(s,needle){return true}};return false}
