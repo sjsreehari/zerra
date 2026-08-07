@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"log"
 	"net/http"
@@ -9,9 +10,10 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	routers "github.com/sjsreehari/zerra/internal/interfaces"
+	proxyadapter "github.com/sjsreehari/zerra/internal/adapters/proxy"
 	containerModule "github.com/sjsreehari/zerra/internal/features/container"
 	proxyModule "github.com/sjsreehari/zerra/internal/features/subdomain"
+	routers "github.com/sjsreehari/zerra/internal/interfaces"
 )
 
 var startTime time.Time
@@ -19,7 +21,28 @@ var startTime time.Time
 type application struct {
 	config config
 	db     *sql.DB
-	// auth   authMiddleware.AuthMiddleware
+}
+
+type config struct {
+	addr string
+	db   dbConfig
+}
+
+type dbConfig struct {
+	dsn string
+}
+
+type databaseResolver struct {
+	db *sql.DB
+}
+
+func (r databaseResolver) ResolveReverseProxy(ctx context.Context, subdomain string) (string, error) {
+	svc := proxyModule.NewService(proxyModule.NewRepository(r.db))
+	proxy, err := svc.ResolveReverseProxy(ctx, subdomain)
+	if err != nil {
+		return "", err
+	}
+	return proxy.ApiBaseUrl, nil
 }
 
 func (app *application) mount() http.Handler {
@@ -63,6 +86,9 @@ func (app *application) mount() http.Handler {
 		})
 	})
 
+	proxyadapter.DefaultRegistry.SetResolver(databaseResolver{db: app.db})
+	r.Use(proxyadapter.DefaultRegistry.Handler())
+
 	api := r.Group("/api/v1")
 
 	modules := []routers.RouterInterface{
@@ -92,13 +118,4 @@ func (app *application) run(h http.Handler) error {
 	log.Printf("server has started at %s", app.config.addr)
 
 	return srv.ListenAndServe()
-}
-
-type config struct {
-	addr string
-	db   dbConfig
-}
-
-type dbConfig struct {
-	dsn string
 }

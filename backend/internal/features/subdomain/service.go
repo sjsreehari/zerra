@@ -1,9 +1,14 @@
 package subdomain
 
-import "context"
+import (
+	"context"
+
+	proxyadapter "github.com/sjsreehari/zerra/internal/adapters/proxy"
+)
 
 type Service interface {
 	CreateNewReverseProxy(ctx context.Context, req ExecuteInstanceRequest) (ReverseProxy, error)
+	ResolveReverseProxy(ctx context.Context, subdomain string) (ReverseProxy, error)
 }
 
 type service struct {
@@ -20,5 +25,18 @@ func (s *service) CreateNewReverseProxy(ctx context.Context, req ExecuteInstance
 		ApiBaseUrl: req.ApiBaseUrl,
 	}
 
-	return s.repo.CreateNewReverseProxy(ctx, proxy)
+	registered, err := s.repo.CreateNewReverseProxy(ctx, proxy)
+	if err != nil {
+		return ReverseProxy{}, err
+	}
+
+	if err := proxyadapter.RegisterRoute(registered.Subdomain, registered.ApiBaseUrl); err != nil {
+		return ReverseProxy{}, err
+	}
+
+	return registered, nil
+}
+
+func (s *service) ResolveReverseProxy(ctx context.Context, subdomain string) (ReverseProxy, error) {
+	return s.repo.GetReverseProxyBySubdomain(ctx, subdomain)
 }
