@@ -60,7 +60,12 @@ func Forward(c *gin.Context, apiBaseURL string) error {
 		originalHost := request.Host
 		originalDirector(request)
 		request.Host = target.Host
-		request.Header.Set("X-Forwarded-Host", originalHost)
+		// Do not send the local gateway host through X-Forwarded-Host. Platforms
+		// such as Vercel can use that header for canonical-host redirects, which
+		// would send the browser away from the proxy. Keep it only as a private
+		// diagnostic header for an upstream that explicitly needs it.
+		request.Header.Del("X-Forwarded-Host")
+		request.Header.Set("X-Sentra-Original-Host", originalHost)
 	}
 	// Some upstream applications respond with an absolute redirect to their own
 	// canonical host. Keep that redirect inside the gateway so clients never
@@ -72,10 +77,13 @@ func Forward(c *gin.Context, apiBaseURL string) error {
 		}
 
 		redirectURL, parseErr := url.Parse(location)
-		if parseErr != nil || redirectURL.Host == "" || !strings.EqualFold(redirectURL.Host, target.Host) {
+		if parseErr != nil || redirectURL.Host == "" {
 			return nil
 		}
 
+		// Rewrite every absolute upstream redirect, rather than only redirects to
+		// target.Host: providers may redirect a deployment URL to a canonical
+		// hostname before the application responds.
 		redirectURL.Scheme = incomingScheme
 		redirectURL.Host = incomingHost
 		response.Header.Set("Location", redirectURL.String())
