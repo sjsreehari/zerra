@@ -83,6 +83,38 @@ Requirements: Python 3.11+ and the packages used by the agent modules, including
 python -B -m pytest -p no:cacheprovider agent -q
 ```
 
+## Run the local SENTRA demo
+
+Start the in-memory inference and protected-demo API in one terminal:
+
+```powershell
+uvicorn agent.api:app --host 127.0.0.1 --port 8000
+```
+
+Run the deterministic security demonstration in another terminal:
+
+```powershell
+python -m agent.main
+```
+
+Useful local inference endpoints:
+
+```text
+POST /v1/evaluate
+GET  /v1/metrics
+GET  /v1/risk-cards
+GET  /v1/identities
+POST /v1/identities/{id}/revoke
+POST /v1/identities/{id}/restore
+GET  /demo/invoices/{id}
+GET  /demo/users/{id}
+GET  /demo/admin/export
+```
+
+The protected demo endpoints use the seeded bearer tokens, for example
+`Authorization: Bearer demo-human-token`. The available demo identities and
+tokens are intentionally in-memory only and must not be used outside this demo.
+
 ## Dynamic reverse proxy
 
 The backend can register an upstream API for a subdomain. A request to the
@@ -176,6 +208,11 @@ go run ./cmd
 
 The service listens on port `8080` by default.
 
+For the Go gateway to enforce SENTRA decisions, start the Python service first and
+set `SENTRA_INFERENCE_URL=http://127.0.0.1:8000` (this is also the default). Every
+request to a registered proxy subdomain is evaluated before it can be forwarded;
+`step_up` and `block` decisions are returned by the gateway instead of proxied.
+
 ## Run the frontend
 
 Requirements: Node.js and npm.
@@ -185,6 +222,10 @@ cd frontend
 npm install
 npm run dev
 ```
+
+Optionally set `NEXT_PUBLIC_SENTRA_URL=http://127.0.0.1:8000` before starting the
+frontend. The dashboard polls the local inference service for identity trust,
+metrics, and Risk Cards, and exposes the identity kill switch.
 
 The current frontend is the default Next.js screen. The next product milestone is
 to replace it with the SENTRA dashboard: live request feed, per-identity trust
