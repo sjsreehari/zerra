@@ -11,7 +11,7 @@ The runner has a fixed `SENTRA_SCANNER_IMAGE` (default `sandbox:latest`), read-o
 Build the fixed scanner image from the backend directory before starting the API:
 
 ```sh
-docker build -f scanner.Dockerfile -t sentra-api-security-runner:latest .
+docker build -f scanner.Dockerfile -t scanner .
 ```
 
 Every run emits API1:2023 through API10:2023. API3 passively flags sensitive JSON key names without storing values; API8 passively checks security headers; API9 checks a configured inventory URL when one is supplied. Categories that require explicit test identities, objects, roles, business-flow fixtures, SSRF callbacks, or outbound-integration configuration remain `not_testable` until those server-controlled fixtures are added.

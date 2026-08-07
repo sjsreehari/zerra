@@ -28,7 +28,7 @@ Image  string
 func NewDockerRunner(cli *client.Client) DockerRunner {
 image := os.Getenv("SENTRA_SCANNER_IMAGE")
 if image == "" {
-image = "sentra-api-security-runner:latest"
+image = "scanner"
 }
 return DockerRunner{Client: cli, Image: image}
 }
