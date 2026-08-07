@@ -2,7 +2,7 @@ package scanner
 
 import (
  "bufio"; "bytes"; "context"; "encoding/json"; "errors"; "io"; "os"; "time"
- "github.com/DeveloperAromal/magma/internal/features/securityscan"
+ "github.com/sjsreehari/zerra/internal/features/securityscan"
  "github.com/docker/docker/api/types/container"
  "github.com/docker/docker/api/types/strslice"
  "github.com/docker/docker/client"
