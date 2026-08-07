@@ -21,10 +21,15 @@ func Execute(req ExecuteRequest) (string, error) {
 	)
 	defer cancel()
 
+	image := req.Image
+	if image == "" {
+		image = "kprecon"
+	}
+
 	resp, err := cli.ContainerCreate(
 		ctx,
 		&container.Config{
-			Image: "kprecon",
+			Image: image,
 			Cmd:   req.Command,
 			Tty:   false,
 		},

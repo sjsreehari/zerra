@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/DeveloperAromal/magma/pkg/logger"
+	"github.com/sjsreehari/zerra/pkg/logger"
 	_ "github.com/lib/pq"
 )
 
