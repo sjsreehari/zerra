@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	inferenceAdapter "github.com/sjsreehari/zerra/internal/adapters/inference"
 	scannerAdapter "github.com/sjsreehari/zerra/internal/adapters/scanner"
 	securityscanFeature "github.com/sjsreehari/zerra/internal/features/securityscan"
 	proxyAdapter "github.com/sjsreehari/zerra/internal/adapters/proxy"
@@ -54,6 +55,11 @@ func (app *application) mount() http.Handler {
 	// Dynamic subdomain proxying happens before route matching so a registered
 	// host forwards every path, including paths such as / and /health.
 	proxyService := proxyModule.NewService(proxyModule.NewRepository(app.db))
+	inferenceURL := os.Getenv("SENTRA_INFERENCE_URL")
+	if inferenceURL == "" {
+		inferenceURL = "http://127.0.0.1:8000"
+	}
+	inferenceClient := inferenceAdapter.New(inferenceURL)
 	r.Use(func(c *gin.Context) {
 		subdomain := proxyAdapter.SubdomainFromHost(c.Request.Host)
 		if subdomain == "" {
@@ -69,6 +75,19 @@ func (app *application) mount() http.Handler {
 		if err != nil {
 			log.Printf("failed to resolve proxy route for %q: %v", subdomain, err)
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "failed to resolve upstream API"})
+			return
+		}
+
+		verdict, reason, err := inferenceClient.Evaluate(c.Request.Context(), c.Request)
+		if err != nil {
+			log.Printf("inference unavailable for %q: %v", subdomain, err)
+			c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"error": "security inference unavailable"})
+			return
+		}
+		if verdict != "allow" {
+			status := http.StatusForbidden
+			if verdict == "step_up" { status = http.StatusUnauthorized }
+			c.AbortWithStatusJSON(status, gin.H{"verdict": verdict, "reason": reason})
 			return
 		}
 
