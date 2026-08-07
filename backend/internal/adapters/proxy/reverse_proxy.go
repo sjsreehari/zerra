@@ -18,21 +18,20 @@ import (
 func SubdomainFromHost(host string) string {
 	host = hostname(host)
 
+	// These local host forms intentionally do not depend on BASE_DOMAIN. They
+	// make a tenant subdomain usable during development even when a developer
+	// has a production base domain in their environment.
+	if os.Getenv("ENVIRONMENT") != "production" {
+		if subdomain := localSubdomainFromHost(host); subdomain != "" {
+			return subdomain
+		}
+	}
+
 	baseDomain := os.Getenv("BASE_DOMAIN")
 	if baseDomain == "" {
 		baseDomain = "127.0.0.1"
 	}
 	baseDomain = hostname(baseDomain)
-
-	// A hostname such as customer.127.0.0.1 is not normally resolvable by
-	// public DNS. nip.io (and compatible services) resolves it to 127.0.0.1,
-	// so accept it as the zero-configuration local-development equivalent.
-	for _, suffix := range []string{".nip.io", ".xip.io", ".sslip.io"} {
-		if strings.HasSuffix(host, suffix) {
-			host = strings.TrimSuffix(host, suffix)
-			break
-		}
-	}
 
 	suffix := "." + baseDomain
 	if !strings.HasSuffix(host, suffix) {
@@ -40,6 +39,20 @@ func SubdomainFromHost(host string) string {
 	}
 
 	return strings.TrimSuffix(host, suffix)
+}
+
+func localSubdomainFromHost(host string) string {
+	for _, suffix := range []string{
+		".127.0.0.1",
+		".127.0.0.1.nip.io",
+		".127.0.0.1.xip.io",
+		".127.0.0.1.sslip.io",
+	} {
+		if strings.HasSuffix(host, suffix) {
+			return strings.TrimSuffix(host, suffix)
+		}
+	}
+	return ""
 }
 
 func hostname(host string) string {

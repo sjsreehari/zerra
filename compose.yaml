@@ -39,7 +39,9 @@ services:
     environment:
       DB_CONN_STR: postgres://sentra:sentra-local-only@postgres:5432/sentra?sslmode=disable
       SENTRA_INFERENCE_URL: http://inference:8000
-      BASE_DOMAIN: gateway.test
+      # The local development hostname is resolved by nip.io, so browser
+      # requests such as qroasis.127.0.0.1.nip.io:8080 enter the proxy.
+      BASE_DOMAIN: 127.0.0.1
       ENVIRONMENT: development
     ports: ["8080:8080"]
     depends_on:

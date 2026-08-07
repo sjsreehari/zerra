@@ -9,7 +9,7 @@ import urllib.request
 
 GATEWAY = "http://127.0.0.1:8080"
 INFERENCE = "http://127.0.0.1:8000"
-HOST = "qroasis.gateway.test"
+HOST = "qroasis.127.0.0.1.nip.io"
 
 
 def request(url: str, *, token: str | None = None, method: str = "GET", body: dict | None = None):

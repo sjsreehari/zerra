@@ -11,6 +11,7 @@ import (
 )
 
 func TestSubdomainFromHost(t *testing.T) {
+	t.Setenv("ENVIRONMENT", "development")
 	t.Setenv("BASE_DOMAIN", "127.0.0.1")
 
 	for _, test := range []struct {
@@ -27,6 +28,15 @@ func TestSubdomainFromHost(t *testing.T) {
 				t.Fatalf("SubdomainFromHost(%q) = %q, want %q", test.host, got, test.want)
 			}
 		})
+	}
+}
+
+func TestSubdomainFromHostAcceptsLocalHostnameWithConfiguredDomain(t *testing.T) {
+	t.Setenv("ENVIRONMENT", "development")
+	t.Setenv("BASE_DOMAIN", "gateway.example.com")
+
+	if got, want := SubdomainFromHost("qroasis.127.0.0.1.nip.io:8080"), "qroasis"; got != want {
+		t.Fatalf("SubdomainFromHost() = %q, want %q", got, want)
 	}
 }
 
