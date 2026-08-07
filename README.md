@@ -117,7 +117,9 @@ The proxy does the following:
 3. Uses the matched `api_base_url` as the upstream destination.
 4. Sends the upstream `Host` header as `my-deployment.vercel.app`, which allows
    Vercel to locate the correct deployment.
-5. Retains the original host in `X-Forwarded-Host`.
+5. Does not forward the local gateway host as `X-Forwarded-Host` (which can
+   trigger Vercel canonical-host redirects); it retains it in the private
+   `X-Sentra-Original-Host` header for diagnostics.
 6. Rewrites absolute upstream redirect locations back to the original gateway
    host, so Vercel redirects do not expose or navigate to the deployment URL.
 

@@ -2,7 +2,7 @@ package tests
 
 import (
 	"testing"
-	"github.com/DeveloperAromal/magma/internal/features/securityscan"
+	"github.com/sjsreehari/zerra/internal/features/securityscan"
 )
 
 func TestEveryOWASPCheckHasStructuredNotTestableFallback(t *testing.T) {
