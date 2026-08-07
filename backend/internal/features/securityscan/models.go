@@ -15,7 +15,7 @@ type Severity string
 const ( Info Severity = "info"; Low Severity = "low"; Medium Severity = "medium"; High Severity = "high"; Critical Severity = "critical" )
 
 type Job struct { ID, Subdomain, TargetURL string; Status JobStatus; Mode Mode; RequestedAt time.Time; StartedAt, CompletedAt *time.Time; TotalChecks, PassedChecks, FailedChecks, WarningChecks, NotTestableChecks int; ErrorMessage *string }
-type Finding struct { ID, JobID, OWASPID, Title string; Severity Severity; Status FindingStatus; Endpoint, Method *string; Evidence map[string]any; Remediation string; CreatedAt time.Time; Assessment string }
+type Finding struct { ID string `json:"id,omitempty"`; JobID string `json:"job_id,omitempty"`; OWASPID string `json:"owasp_id"`; Title string `json:"title"`; Severity Severity `json:"severity"`; Status FindingStatus `json:"status"`; Endpoint *string `json:"endpoint,omitempty"`; Method *string `json:"method,omitempty"`; Evidence map[string]any `json:"evidence"`; Remediation string `json:"remediation"`; CreatedAt time.Time `json:"created_at,omitempty"`; Assessment string `json:"assessment,omitempty"` }
 type CreateRequest struct { Subdomain string `json:"subdomain" binding:"required"`; Mode Mode `json:"mode"` }
 type ScanPlan struct { JobID string `json:"job_id"`; TargetURL string `json:"target_url"`; Mode Mode `json:"mode"`; AllowedMethods []string `json:"allowed_methods"`; RequestBudget int `json:"request_budget"`; RateLimitPerSecond int `json:"rate_limit_per_second"`; KnownTestEndpoints []string `json:"known_test_endpoints"`; OpenAPIURL *string `json:"openapi_url"` }
 type ScanReport struct { Findings []Finding `json:"findings"`; RequestsUsed int `json:"requests_used"`; DurationMillis int64 `json:"duration_millis"` }
