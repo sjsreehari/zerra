@@ -9,6 +9,7 @@ import (
  "github.com/docker/docker/pkg/stdcopy"
  "github.com/docker/go-units"
 )
+
 const maxOutput = 1 << 20
 type DockerRunner struct { Client *client.Client; Image string }
 func NewDockerRunner(cli *client.Client) DockerRunner { image:=os.Getenv("SENTRA_SCANNER_IMAGE");if image==""{image="sentra-api-security-runner:latest"};return DockerRunner{Client:cli,Image:image} }
