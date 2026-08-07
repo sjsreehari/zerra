@@ -1,0 +1,8 @@
+[
+  {"id":"m1","identity_id":"mutated","timestamp":"2026-01-01T11:00:00+00:00","endpoint":"/customers/501","method":"GET","object_id":"501","response_fields":["id"]},
+  {"id":"m2","identity_id":"mutated","timestamp":"2026-01-01T11:00:08+00:00","endpoint":"/customers/502","method":"GET","object_id":"502","response_fields":["id"]},
+  {"id":"m3","identity_id":"mutated","timestamp":"2026-01-01T11:00:14+00:00","endpoint":"/customers/503","method":"GET","object_id":"503","response_fields":["id"]},
+  {"id":"m4","identity_id":"mutated","timestamp":"2026-01-01T11:00:18+00:00","endpoint":"/customers/504","method":"GET","object_id":"504","response_fields":["id"]},
+  {"id":"m5","identity_id":"mutated","timestamp":"2026-01-01T11:00:20+00:00","endpoint":"/customers/505","method":"GET","object_id":"505","response_fields":["email"]},
+  {"id":"m6","identity_id":"mutated","timestamp":"2026-01-01T11:00:21+00:00","endpoint":"/customers/download","method":"GET","response_fields":["id","email","salary","status","city"]}
+]
