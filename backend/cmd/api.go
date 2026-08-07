@@ -9,11 +9,12 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	"github.com/DeveloperAromal/magma/internal/adapters/scanner"
-	"github.com/DeveloperAromal/magma/internal/features/securityscan"
-	// routers "github.com/DeveloperAromal/iPROMS/internal/interfaces"
-	// superUserModel "github.com/DeveloperAromal/iPROMS/internal/features/su"
-	// orgModel "github.com/DeveloperAromal/iPROMS/internal/features/organizations"
+	scannerAdapter "github.com/sjsreehari/zerra/internal/adapters/scanner"
+	securityscanFeature "github.com/sjsreehari/zerra/internal/features/securityscan"
+	proxyAdapter "github.com/sjsreehari/zerra/internal/adapters/proxy"
+	containerModule "github.com/sjsreehari/zerra/internal/features/container"
+	proxyModule "github.com/sjsreehari/zerra/internal/features/subdomain"
+	routers "github.com/sjsreehari/zerra/internal/interfaces"
 )
 
 var startTime time.Time
@@ -105,18 +106,18 @@ func (app *application) mount() http.Handler {
 	api := r.Group("/api/v1")
 	// Targets are resolved only through the proxy table. The scanner runner has
 	// no client-controlled image, command, mount, headers, or target URL.
-	var runner securityscan.Runner
-	dockerClient, err := scanner.NewDockerClient()
+	var runner securityscanFeature.Runner
+	dockerClient, err := scannerAdapter.NewDockerClient()
 	if err != nil {
-		runner = securityscan.UnavailableRunner{Err: err}
+		runner = securityscanFeature.UnavailableRunner{Err: err}
 	} else {
-		runner = scanner.NewDockerRunner(dockerClient)
+		runner = scannerAdapter.NewDockerRunner(dockerClient)
 	}
-	scanService := securityscan.NewService(
-		securityscan.PostgresRepository{DB: app.db}, scanner.NewTargetGuard(), runner,
-		securityscan.DefaultLimits(), os.Getenv("SAFE_ACTIVE_SCANS_ENABLED") == "true",
+	scanService := securityscanFeature.NewService(
+		securityscanFeature.PostgresRepository{DB: app.db}, scannerAdapter.NewTargetGuard(), runner,
+		securityscanFeature.DefaultLimits(), os.Getenv("SAFE_ACTIVE_SCANS_ENABLED") == "true",
 	)
-	securityscan.Register(api.Group("/security-scans"), securityscan.NewHandler(scanService))
+	securityscanFeature.Register(api.Group("/security-scans"), securityscanFeature.NewHandler(scanService))
 
 	modules := []routers.RouterInterface{
 		containerModule.NewRouter(app.db),
