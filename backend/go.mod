@@ -1,4 +1,4 @@
-module github.com/DeveloperAromal/magma
+module github.com/sjsreehari/zerra
 
 go 1.25.0
 
@@ -20,7 +20,7 @@ require (
 	github.com/cloudwego/base64x v0.1.6 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
-	github.com/docker/go-connections v0.8.1 // indirect
+	github.com/docker/go-connections v0.5.0 // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.12 // indirect
 	github.com/gin-contrib/sse v1.1.0 // indirect
