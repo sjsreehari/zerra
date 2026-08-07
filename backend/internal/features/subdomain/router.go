@@ -1,4 +1,4 @@
-package container
+package subdomain
 
 import (
 	"database/sql"
@@ -17,7 +17,7 @@ func NewRouter(db *sql.DB) *Router {
 }
 
 func (rtr *Router) BasePath() string {
-	return "/container"
+	return "/proxy"
 }
 
 func (rtr *Router) Register(rg *gin.RouterGroup) {
@@ -26,5 +26,5 @@ func (rtr *Router) Register(rg *gin.RouterGroup) {
 	service := NewService(repo)
 	handler := NewHandler(service)
 
-	rg.POST("", handler.ExecuteInstance)
+	rg.POST("", handler.CreateNewReverseProxy)
 }
