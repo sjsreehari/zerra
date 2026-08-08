@@ -200,7 +200,13 @@ export default function DashboardPage() {
           <div className="header-actions"><button className="quiet-button" onClick={() => void loadDashboard(true)} disabled={loading}>{loading ? "Refreshing..." : "Refresh"}</button><button className="avatar-button" onClick={logout} title="Log out" aria-label="Log out">{user?.name?.charAt(0).toUpperCase() ?? "?"}</button></div>
         </header>
 
-        {message && <div className="console-notice" role="status"><span>{message}</span><button onClick={() => setMessage("")} aria-label="Dismiss message">x</button></div>}
+        {message && (
+          <div className="console-notice" role="status">
+            <span>{message}</span>
+            {message.includes("Authentication required") && <a href="/login" style={{ marginLeft: "12px", textDecoration: "underline", fontWeight: 600 }}>Sign in</a>}
+            <button onClick={() => setMessage("")} aria-label="Dismiss message">x</button>
+          </div>
+        )}
 
         <section className="posture-banner">
           <div><span className="posture-label">LIVE POSTURE</span><h2>{securityPosture}</h2><p>{metrics?.blocked_count ?? 0} blocked request{metrics?.blocked_count === 1 ? "" : "s"} across {metrics?.requests_scored ?? 0} evaluated calls.</p></div>
