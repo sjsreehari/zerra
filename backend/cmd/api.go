@@ -283,7 +283,20 @@ func (app *application) mount() http.Handler {
 			c.Data(status, "text/plain", body)
 		})
 
-		sentra.POST("/attack-sim/run", proxyPOST("/v1/attack-sim/run"))
+		sentra.POST("/attack-sim/run", func(c *gin.Context) {
+			scenarioID := c.DefaultQuery("scenario_id", "fast_enumeration")
+			if scenarioID != "fast_enumeration" && scenarioID != "normal_traffic" {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "unknown simulation scenario"})
+				return
+			}
+			path := "/v1/attack-sim/run?scenario_id=" + scenarioID
+			body, status, err := inferenceClient.ProxyPOST(c.Request.Context(), path, nil)
+			if err != nil {
+				c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+				return
+			}
+			c.Data(status, "application/json", body)
+		})
 
 		// Traffic logs from database
 		sentra.GET("/logs", func(c *gin.Context) {

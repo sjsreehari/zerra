@@ -1,326 +1,390 @@
-# Zerra / SENTRA
+# Zerra / SENTRA Security Platform
 
-Zerra is the repository for the SENTRA security-platform prototype: a zero-trust
-authorization layer intended to protect APIs, services, AI agents, and MCP
-servers. SENTRA evaluates the identity, target object, and request sequence—not
-only the current request—to decide whether to allow, step-up, or block access.
+**Zerra** is the core repository for **SENTRA**: a Zero-Trust Authorization & Security Intelligence Proxy designed to protect APIs, microservices, AI agents, and Model Context Protocol (MCP) servers. 
 
-> Current state: the Docker Compose stack runs the Go gateway, PostgreSQL,
-> Python inference service, protected upstream, and an authenticated Next.js
-> console. Management and intelligence APIs use HTTP-only JWT session cookies.
+Unlike traditional static RBAC/ABAC or simple IP rate-limiters, SENTRA evaluates **identity, target object graph context, and temporal request sequences**—not just single isolated requests—to continuously adjust trust scores and enforce real-time access decisions (`ALLOW`, `STEP_UP`, or `BLOCK`).
 
-## Repository layout
+---
 
-```text
-agent/                         Python security intelligence layer
-  graph/                       Temporal multi-relation Intent Graph Engine
-  sequential/                  Sequence Intent scorer / state-machine detectors
-  trust/                       Stateful 0–100 trust score and verdict engine
+## 🏗️ Architecture & Technical Flow
 
-backend/                       Go/Gin service and dynamic reverse proxy
-  cmd/                         Application entry point and HTTP route mounting
-  internal/adapters/proxy/     Host parsing and reverse-proxy HTTP adapter
-  internal/features/subdomain/ Database-backed subdomain registration/lookup
-  migrations/                  PostgreSQL schema for proxy registrations
+SENTRA operates as an inline security enforcement proxy positioned between external clients (humans, microservices, AI agents) and upstream protected services, paired with an out-of-band management console and security intelligence engine.
 
-frontend/                      Next.js dashboard (currently starter UI)
-```
-
-## SENTRA security design
+### High-Level System Architecture
 
 ```text
-Incoming request
-  -> identity / trust-foundation checks
-  -> Intent Graph score (identity ↔ object ↔ endpoint ↔ tenant)
-  -> Sequence score (enumeration, probing, scope-violation chains)
-  -> continuous Trust Score
-  -> policy decision: allow | step_up | block
-  -> Risk Card and dashboard event
+                  ┌─────────────────────────────────────────────────────────┐
+                  │          Clients / AI Agents / MCP Servers / UI         │
+                  └────────────────────────────┬────────────────────────────┘
+                                               │
+                       1. Incoming HTTP Request (Host: customer.domain.com)
+                                               │
+                                               ▼
+     ┌──────────────────────────────────────────────────────────────────────────┐
+     │                      Go Gateway & Dynamic Reverse Proxy                  │
+     │                      (backend/ - Port 8080 - Gin Web Framework)          │
+     │  • Database Subdomain Host Lookup (subdomain ➔ api_base_url)             │
+     │  • Authenticated JWT Session Cookie Engine (/api/v1/auth/*)              │
+     │  • Subdomain Proxy Registration (/api/v1/proxy)                          │
+     └────────────────────────────┬────────────────────────────┬────────────────┘
+                                  │                            │
+             2. Synchronous Risk Evaluation               5. Forwarded Traffic
+             POST /v1/evaluate                            (Only if ALLOWED)
+                                  │                            │
+                                  ▼                            ▼
+┌──────────────────────────────────────────────────┐ ┌───────────────────────────┐
+│     SENTRA Intelligence Layer (Python Agent)     │ │ Private Upstream Service  │
+│      (agent/ - Port 8000 - FastAPI + Pydantic)   │ │ (agent.upstream_api:app)  │
+│                                                  │ │ • Port 8001 (Internal)   │
+│  ┌────────────────────────────────────────────┐  │ │ • Multi-Tenant Sensitive  │
+│  │ 1. Graph Risk Engine (NetworkX)            │  │ │   Endpoints (Invoices,    │
+│  │    Multi-relation edges:                   │  │ │   User Records, Admin)    │
+│  │    Identity ↔ Object ↔ Endpoint ↔ Tenant   │  │ └───────────────────────────┘
+│  └─────────────────────┬──────────────────────┘  │
+│                        │                         │
+│  ┌─────────────────────▼──────────────────────┐  │
+│  │ 2. Sequence Intent Scorer                  │  │
+│  │    Per-identity sliding window state       │  │
+│  │    Detects enumeration, 401/403 probing,   │  │
+│  │    and Agent/MCP scope contract breaches   │  │
+│  └─────────────────────┬──────────────────────┘  │
+│                        │                         │
+│  ┌─────────────────────▼──────────────────────┐  │
+│  │ 3. Continuous Trust Score Engine           │  │
+│  │    EWMA score (0-100), warm-up protection, │  │
+│  │    hysteresis, verdict mapping             │  │
+│  └─────────────────────┬──────────────────────┘  │
+│                        │                         │
+│  ┌─────────────────────▼──────────────────────┐  │
+│  │ 4. Policy Engine & Risk Card Builder       │  │
+│  │    Verdict: ALLOW | STEP_UP | BLOCK        │  │
+│  └─────────────────────┬──────────────────────┘  │
+│                        │                         │
+│  ┌─────────────────────▼──────────────────────┐  │
+│  │ 5. AI Threat Hunter (Ollama LLM)           │  │
+│  │    Root cause analysis & threat reports    │  │
+│  └────────────────────────────────────────────┘  │
+└────────────────────────┬─────────────────────────┘
+                         │
+         3. Decision Response (Verdict + Risk Card)
+                         │
+                         ▼
+        4. Gateway Action:
+           • ALLOW   => Forward request to Upstream Target
+           • STEP_UP => Return HTTP 401/403 Challenge
+           • BLOCK   => Block request immediately; return Risk Card evidence
+                         │
+                         ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                        Next.js Security Console                              │
+│               (frontend/ - Port 3000 - Next.js App Router + Tailwind)        │
+│  • Live Threat Metrics & Identity Trust Score Monitor                        │
+│  • Interactive Attack Simulator (Enumeration, Scope Breaches, Cross-Tenant)  │
+│  • Risk Card Inspection & Ollama AI Threat Hunter Incident Reports           │
+│  • Dynamic Policy Recommender & One-Click Policy Approval                    │
+│  • Identity Kill-Switch (Revoke / Restore Identity Access)                   │
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-The current Python inference modules use transparent, deterministic scoring for
-the MVP. They are designed as a foundation for later GraphSAGE/GAT and learned
-sequence models without changing the application-facing decision contract.
+---
 
-## Python security modules
+## 🔄 End-to-End Request Evaluation Lifecycle
 
-### Intent Graph Engine — `agent/graph`
+1. **Host Extraction & Subdomain Target Lookup**:
+   - The Go Gateway intercepts an HTTP request (e.g. `http://qroasis.127.0.0.1:8080/invoices/inv-001`).
+   - It extracts the `qroasis` subdomain and queries the PostgreSQL database (`proxy` table) to find the target `api_base_url` (e.g. `http://upstream:8001`).
 
-Maintains a NetworkX multi-relation graph for identity-to-object,
-identity-to-endpoint, and object-to-tenant relationships. It scores:
+2. **Synchronous Security Inference Call**:
+   - If `SENTRA_INFERENCE_ENABLED=true`, the gateway sends a synchronous `POST /v1/evaluate` payload to the Python SENTRA inference engine (`:8000`).
+   - The payload contains the normalized `CallEvent`: timestamp, bearer token/identity ID, identity type (`human`, `agent`, `mcp_server`), target object ID, endpoint path, HTTP method, and tenant ID.
 
-- novel object access;
-- rapid fan-out across previously unseen objects;
-- cross-tenant blast radius;
-- temporal edge decay and pruning.
+3. **Triple-Engine Threat Evaluation Pipeline**:
+   - **Graph Risk Engine (`agent/graph`)**: Maintains a NetworkX multi-relational graph tracking `Identity ↔ Object`, `Identity ↔ Endpoint`, and `Object ↔ Tenant` relations. Calculates graph risk scores based on novel object access, rapid fan-out across unseen objects, cross-tenant blast radius, and edge decay.
+   - **Sequence Intent Scorer (`agent/sequential`)**: Maintains bounded, sliding-window request histories per identity. Stateful detectors flag attack chains (e.g., `enumerate` $\rightarrow$ `read` $\rightarrow$ `export`), brute-force credential/permission probing (repeated 401/403 calls), and AI Agent / MCP server scope violations.
+   - **Trust Score Engine (`agent/trust`)**: Aggregates graph risk score, sequence risk score, auth strength, and sensitive field exposures into a continuous 0–100 score with Exponentially Weighted Moving Average (EWMA) smoothing, warm-up protection, and hysteresis.
 
-It returns a `graph_risk_score` from 0 to 1 plus deterministic evidence.
+4. **Verdict Enforcement & Risk Card Generation**:
+   - The Policy Engine maps the continuous Trust Score and explicit policy rules to a final verdict:
+     - `ALLOW` (Trust Score $\ge 70$, no hard rule violations)
+     - `STEP_UP` ($40 \le$ Trust Score $< 70$, requires step-up authentication or elevated scope)
+     - `BLOCK` (Trust Score $< 40$, cross-tenant access, or explicit policy violation)
+   - For `BLOCK` or `STEP_UP` verdicts, SENTRA constructs a structured **Risk Card** containing evidence, graph metrics, sequence triggering indexes, and policy tags.
 
-### Sequence Intent Scorer — `agent/sequential`
+5. **Upstream Proxy Execution or Block**:
+   - **Allowed**: The Go Gateway proxies the request to the upstream target URL, correctly setting host headers, passing request bodies, and rewriting absolute upstream redirect locations back to the gateway domain.
+   - **Blocked / Stepped Up**: The Go Gateway halts execution immediately and returns `HTTP 403 Forbidden` (or 401) with the verdict and risk evidence. **The upstream target service is never contacted.**
 
-Maintains bounded, per-identity request windows and detects:
+6. **Analyst AI Threat Hunter & Dashboard Visibility**:
+   - The Security Console (`:3000`) streams live metrics, active identity trust scores, and Risk Cards.
+   - Operators can trigger an automated **AI Threat Hunter** investigation powered by Ollama (e.g., `llama3.2`) to generate plain-text and markdown incident reports, or approve auto-generated security policy recommendations.
 
-- enumerate → read → export chains;
-- credential probing via repeated 401/403 calls;
-- agent/MCP scope-contract violations.
+---
 
-It returns `sequence_risk_score`, the matching pattern, the triggering call index,
-feature evidence, and timing metrics.
+## 📁 Repository Layout
 
-### Trust Score Engine — `agent/trust`
+```text
+zerra/
+├── agent/                         # Python Security Intelligence Layer & Inference API
+│   ├── agents/                    # Threat Hunter LLM agent & investigation logic
+│   ├── api.py                     # FastAPI REST server exposing /v1/evaluate & metrics
+│   ├── attack_sim/                # Synthetic attack traffic generators & scenarios
+│   ├── contracts/                 # Pydantic schemas (Identity, CallEvent, RiskCard, Policy)
+│   ├── graph/                     # NetworkX Temporal Multi-Relation Graph Engine
+│   ├── identity/                  # Identity registry and revocation state management
+│   ├── llm/                       # Ollama LLM integration client & prompt engine
+│   ├── main.py                    # Standalone CLI & demo engine bootstrap
+│   ├── metrics/                   # Live risk, latency, and verdict telemetry collector
+│   ├── mock_data/                 # Multi-tenant sample datastore for demo endpoints
+│   ├── orchestrator/              # Master evaluation orchestrator (Graph ➔ Sequence ➔ Trust)
+│   ├── policy/                    # Deterministic policy engine and rule evaluator
+│   ├── policy_recommendations/    # Dynamic policy proposal engine based on Risk Cards
+│   ├── reports/                   # Markdown incident report generator
+│   ├── risk_cards/                # Risk Card builder and persistent storage
+│   ├── sequential/                # Bounded sliding-window sequence intent detector
+│   ├── tests/                     # Pytest suite for graph, sequence, and trust engines
+│   ├── trust/                     # Continuous EWMA 0–100 Trust Score calculator
+│   └── upstream_api.py            # Isolated mock upstream HTTP service (Port 8001)
+│
+├── backend/                       # Go Dynamic Reverse Proxy & Authentication Gateway
+│   ├── cmd/                       # Gateway entry point and server bootstrapper
+│   ├── internal/
+│   │   ├── adapters/              # Gateway adapters (PostgreSQL, Proxy, Inference API)
+│   │   ├── features/              # Feature modules (Auth/JWT, Subdomain, Security Scan)
+│   │   └── interfaces/            # HTTP routes, middlewares, and handler bindings
+│   ├── migrations/                # SQL schema migrations (subdomain proxy table)
+│   └── Dockerfile                 # Multi-stage Go production container build
+│
+├── frontend/                      # Next.js Web Security Console
+│   ├── app/                       # Next.js 15 App Router pages & API clients
+│   │   ├── dashboard/             # Main threat overview, identities, attack-sim, risk-cards
+│   │   ├── landing/               # Product landing page
+│   │   ├── login/ & register/     # Authenticated console access routes
+│   │   └── globals.css            # Custom CSS & UI styling token system
+│   └── Dockerfile                 # Frontend container build script
+│
+├── docker/                        # Production & local infrastructure configurations
+│   └── nginx/                     # Nginx edge reverse proxy configuration
+│
+├── tests/                         # End-to-end integration & system validation
+│   └── e2e_pipeline.py            # Comprehensive real-HTTP Compose integration test script
+│
+├── compose.yaml                   # Complete multi-container Docker Compose orchestration
+├── .env.example                   # Master environment configuration template
+└── README.md                      # End-to-end project documentation
+```
 
-Combines graph risk, sequence risk, authentication weakness, and sensitive-field
-exposure into a continuous 0–100 score. It has EWMA smoothing, warm-up protection,
-hysteresis, and maps scores to `allow`, `step_up`, or `block` verdicts.
+---
 
-## Run Python tests
+## 🛠️ Tech Stack & Requirements
 
-Requirements: Python 3.11+ and the packages used by the agent modules, including
-`pydantic`, `networkx`, and `pytest`.
+- **Go 1.22+**: High-performance dynamic reverse proxy gateway (`Gin` web framework, `lib/pq`).
+- **Python 3.11+**: Inference service, threat engines (`FastAPI`, `Pydantic v2`, `NetworkX`, `Uvicorn`, `Pytest`).
+- **Next.js 15 (React 19)**: Security console dashboard (`TypeScript`, `Tailwind CSS`, `Lucide Icons`).
+- **PostgreSQL 16**: Database storage for subdomain routing maps and user auth records.
+- **Docker & Docker Compose**: Unified multi-container deployment pipeline.
+- **Ollama (Optional)**: Local LLM runtime (e.g. `llama3.2`) for AI Threat Hunter investigations.
+
+---
+
+## 🚀 Quickstart Guide
+
+### 1. Configure Runtime Environment
+
+Copy `.env.example` to create your local `.env` file:
 
 ```powershell
-python -B -m pytest -p no:cacheprovider agent -q
+cp .env.example .env
 ```
 
-## Run the local SENTRA demo
+Default local `.env` settings:
 
-### Configure runtime environment
+```env
+OLLAMA_BASE_URL=https://CHANGE_ME-ollama-tunnel.example
+OLLAMA_MODEL=llama3.2
+JWT_SECRET=CHANGE_ME_USE_A_LONG_RANDOM_SECRET
+JWT_TTL_HOURS=24
+POSTGRES_DB=sentra
+POSTGRES_USER=sentra
+POSTGRES_PASSWORD=sentra-local-only
+DB_CONN_STR=postgres://sentra:sentra-local-only@postgres:5432/sentra?sslmode=disable
+ENVIRONMENT=development
+BASE_DOMAIN=127.0.0.1
+SENTRA_INFERENCE_URL=http://inference:8000
+SENTRA_INFERENCE_ENABLED=true
+CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+NEXT_PUBLIC_API_URL=http://localhost:8080
+```
 
-The root `.env` is the single local configuration file. It already contains
-safe local defaults; copy `.env.example` when setting up another machine.
+---
 
-For Ollama hosted on another machine, replace `OLLAMA_BASE_URL` with the HTTPS
-URL provided by that machine's VS Code tunnel. The analyst integration is
-optional: enforcement remains deterministic and the Threat Hunter returns a
-safe fallback investigation when Ollama is unavailable.
+### Option A: Complete Docker Compose Stack (Recommended)
 
-`JWT_SECRET` must be a unique, random value of at least 32 characters in every
-non-local environment.
-
-Start the in-memory inference and protected-demo API in one terminal:
+Launch the entire SENTRA stack with PostgreSQL, Python inference, private upstream, Go gateway, Nginx, and Next.js frontend console:
 
 ```powershell
-uvicorn agent.api:app --host 127.0.0.1 --port 8000
+docker compose --profile frontend up --build -d
 ```
 
-Run the deterministic security demonstration in another terminal:
+Check running services:
+
+| Service | Host Port | Description |
+| :--- | :--- | :--- |
+| **Go Gateway** | `http://localhost:8080` | Dynamic Reverse Proxy & Auth API |
+| **Inference API** | `http://localhost:8000` | Python SENTRA Security Intelligence API |
+| **Security Console** | `http://localhost:3000` | Next.js Dashboard UI |
+| **Edge Nginx** | `http://localhost:80` | Optional Edge Web Proxy |
+| **Upstream API** | Internal (`8001`) | Isolated Private Mock Service |
+| **PostgreSQL** | Internal (`5432`) | Proxy & Auth Database |
+
+To tear down the environment:
 
 ```powershell
-python -m agent.main
+docker compose down -v
 ```
 
-Useful local inference endpoints:
+---
 
-```text
-POST /v1/evaluate
-GET  /v1/metrics
-GET  /v1/risk-cards
-GET  /v1/identities
-POST /v1/identities/{id}/revoke
-POST /v1/identities/{id}/restore
-GET  /demo/invoices/{id}
-GET  /demo/users/{id}
-GET  /demo/admin/export
-```
+### Option B: Standalone Manual Execution
 
-The protected demo endpoints use the seeded bearer tokens, for example
-`Authorization: Bearer demo-human-token`. The available demo identities and
-tokens are intentionally in-memory only and must not be used outside this demo.
+If you wish to run the components independently for development:
 
-## Dynamic reverse proxy
-
-The backend can register an upstream API for a subdomain. A request to the
-subdomain is handled by the Go service; it looks up the upstream in PostgreSQL and
-proxies the request server-side. The browser/client remains on the gateway URL.
-
-### Registration table
-
-Migration `backend/migrations/001_create_subdomain.up.sql` creates:
-
-```text
-proxy(id, subdomain, api_base_url, created_at, updated_at)
-```
-
-For a row like this:
-
-```text
-subdomain:    qroasis
-api_base_url: https://my-deployment.vercel.app
-```
-
-this request is proxied:
-
-```text
-http://qroasis.127.0.0.1:8080/anything
-```
-
-The proxy does the following:
-
-1. Extracts `qroasis` from the incoming host.
-2. Runs a case-insensitive lookup in `proxy.subdomain`.
-3. Uses the matched `api_base_url` as the upstream destination.
-4. Sends the upstream `Host` header as `my-deployment.vercel.app`, which allows
-   Vercel to locate the correct deployment.
-5. Does not forward the local gateway host as `X-Forwarded-Host` (which can
-   trigger Vercel canonical-host redirects); it retains it in the private
-   `X-Sentra-Original-Host` header for diagnostics.
-6. Rewrites absolute upstream redirect locations back to the original gateway
-   host, so Vercel redirects do not expose or navigate to the deployment URL.
-
-Set `BASE_DOMAIN` for non-local environments:
-
-```text
-BASE_DOMAIN=example.com
-```
-
-Then `customer.example.com` resolves the `customer` row. The local default is
-`127.0.0.1`, so `qroasis.127.0.0.1:8080` resolves `qroasis`.
-
-### Register an upstream
-
-Start PostgreSQL, apply the migrations, set `DB_CONN_STR`, then start the backend.
-The current registration endpoint is:
-
-```http
-POST /api/v1/proxy
-Content-Type: application/json
-
-{
-  "subdomain": "qroasis",
-  "api_base_url": "https://my-deployment.vercel.app"
-}
-```
-
-Use an actual Vercel deployment/custom-domain URL for `api_base_url`, not a Vercel
-dashboard URL or Vercel REST API endpoint.
-
-### Test local host routing
-
-Use `curl --resolve` to force a local hostname to the gateway:
-
-```bash
-curl --resolve qroasis.127.0.0.1:8080:127.0.0.1 \
-  http://qroasis.127.0.0.1:8080/
-```
-
-Or send the host header directly:
-
-```bash
-curl -H "Host: qroasis.127.0.0.1:8080" http://127.0.0.1:8080/
-```
-
-## Run the Go backend
-
-Requirements: Go, PostgreSQL, and a valid `DB_CONN_STR` environment variable.
+#### Step 1: Start the Python Intelligence Service
 
 ```powershell
+# In terminal 1
+uvicorn agent.api:app --host 127.0.0.1 --port 8000 --reload
+```
+
+#### Step 2: Start PostgreSQL & Run the Go Backend Gateway
+
+Ensure PostgreSQL is running and migrations are applied, then:
+
+```powershell
+# In terminal 2
+$env:DB_CONN_STR="postgres://sentra:sentra-local-only@127.0.0.1:5432/sentra?sslmode=disable"
+$env:SENTRA_INFERENCE_ENABLED="true"
+$env:SENTRA_INFERENCE_URL="http://127.0.0.1:8000"
 cd backend
 go run ./cmd
 ```
 
-The service listens on port `8080` by default.
-
-The reverse proxy works independently of SENTRA inference. To enforce SENTRA
-decisions, set `SENTRA_INFERENCE_ENABLED=true` and start the Python service with
-`SENTRA_INFERENCE_URL=http://127.0.0.1:8000`. Every registered subdomain request
-is then evaluated before forwarding; `step_up` and `block` decisions are returned
-by the gateway instead of proxied.
-
-## Run the frontend
-
-Requirements: Node.js and npm.
+#### Step 3: Start the Next.js Dashboard
 
 ```powershell
+# In terminal 3
 cd frontend
 npm install
 npm run dev
 ```
 
-Optionally set `NEXT_PUBLIC_SENTRA_URL=http://127.0.0.1:8000` before starting the
-frontend. The dashboard polls the local inference service for identity trust,
-metrics, and Risk Cards, and exposes the identity kill switch.
+---
 
-The production-like local flow uses the browser console instead:
+## 🧪 End-to-End Testing & Verification
 
-1. Start the Compose stack below.
-2. Open `http://localhost:3000/login` and register an account.
-3. The gateway sets an HTTP-only JWT cookie; the console reads authenticated
-   SENTRA metrics, identities, Risk Cards, and Ollama availability through the
-   gateway without exposing a session token to JavaScript.
+### 1. Run Automated Real-HTTP Integration Pipeline
 
-Authentication endpoints:
-
-```text
-POST /api/v1/auth/register
-POST /api/v1/auth/login
-POST /api/v1/auth/logout
-GET  /api/v1/auth/me
-```
-
-## One-command container pipeline and real flow test
-
-The Compose stack models the complete local traffic path:
-
-```text
-Client request with Host qroasis.gateway.test
-  -> Go gateway :8080
-  -> Python SENTRA inference :8000
-  -> allow: private protected upstream :8001
-  -> block/step-up: Risk Card + metrics, with no upstream request
-  -> dashboard :3000 reads metrics, identities, and Risk Cards
-```
-
-Docker Desktop's **CLI integration must be enabled** and `docker` must be visible
-from the terminal. Run:
+The E2E test script performs real HTTP requests against the live Go Gateway, Python Inference Engine, and Upstream API to verify security enforcement:
 
 ```powershell
-docker compose up --build -d
 python tests/e2e_pipeline.py
-docker compose down -v
 ```
 
-Include the frontend console with `docker compose --profile frontend up --build`.
+**Verified Scenarios in E2E Pipeline**:
+1. User registration & HTTP-only JWT auth cookie issuance.
+2. Registering a custom subdomain proxy route (`qroasis` $\rightarrow$ `http://upstream:8001`).
+3. Permitted human user request passing through Go $\rightarrow$ Python $\rightarrow$ Private Upstream.
+4. Cross-tenant access attempt returning `HTTP 403 Forbidden` (`verdict: block`).
+5. Out-of-scope Agent call blocked before reaching upstream.
+6. High-frequency invoice enumeration attack detected and blocked in real-time.
+7. Telemetry recording & Risk Card emission verified.
 
-The E2E script performs real HTTP requests—not syntax checks—and verifies:
-
-1. a permitted human request reaches the private upstream through Go;
-2. a cross-tenant request is blocked before forwarding;
-3. an out-of-scope agent call is blocked before forwarding;
-4. rapid invoice enumeration is eventually blocked;
-5. metrics and at least one Risk Card are emitted by the inference service.
-
-For manual gateway testing, use a host header or host mapping:
+### 2. Run Python Security Unit & Integration Tests
 
 ```powershell
-curl -H "Host: qroasis.gateway.test" -H "Authorization: Bearer demo-human-token" http://127.0.0.1:8080/invoices/inv-a-001
+python -B -m pytest -p no:cacheprovider agent -q
 ```
 
-The upstream service has no published host port. It is available only on the
-internal Compose network, forcing all external traffic through the Go gateway.
+---
 
-The frontend includes an authenticated security overview with live metrics,
-identity trust, recent Risk Cards, and Ollama analyst status. The protected
-gateway endpoints remain available for extending the console with investigation,
-policy, and identity-management controls.
+## 🌐 Dynamic Reverse Proxy & Subdomain Registration
 
-## Recommended next implementation milestone
+The Go Gateway dynamically routes incoming subdomain requests to their configured upstream backends.
 
-Before connecting a browser dashboard or production gateway, finish the Python
-security core around the existing engines:
+### Register an Upstream Backend
 
-1. Shared Pydantic contracts: `Identity`, `CallEvent`, `RiskCard`, `Policy`, and
-   `DecisionResponse`.
-2. Pure-Python orchestrator that evaluates graph → sequence → trust and returns
-   one decision per event.
-3. Identity registry/Agent Firewall, mock multi-tenant protected data, Risk Card
-   builder, structured policy engine, attack simulator, and live metrics store.
-4. Wire that orchestrator into an HTTP gateway and dashboard only after its
-   end-to-end simulation tests are stable.
+Send a `POST` request to the Go Gateway:
 
-## MVP scope boundaries
+```http
+POST /api/v1/proxy HTTP/1.1
+Host: 127.0.0.1:8080
+Content-Type: application/json
 
-The intended MVP does not require a trained GNN/Transformer, real OIDC provider,
-Kubernetes deployment, outbound-trust broker, or general policy-language parser.
-The priority is a reliable demo where a valid agent token performs an apparently
-legal enumeration sequence, SENTRA detects the behavior, blocks the follow-up
-request, and displays evidence explaining why.
+{
+  "subdomain": "qroasis",
+  "api_base_url": "http://upstream:8001"
+}
+```
+
+### Test Subdomain Routing via Host Headers
+
+Using `curl`:
+
+```bash
+# Request via Host header
+curl -H "Host: qroasis.127.0.0.1:8080" \
+     -H "Authorization: Bearer demo-human-token" \
+     http://127.0.0.1:8080/invoices/inv-a-001
+```
+
+Or using `curl --resolve`:
+
+```bash
+curl --resolve qroasis.127.0.0.1:8080:127.0.0.1 \
+     -H "Authorization: Bearer demo-human-token" \
+     http://qroasis.127.0.0.1:8080/invoices/inv-a-001
+```
+
+---
+
+## 📡 API Endpoint Reference Matrix
+
+### Go Gateway (`http://localhost:8080`)
+
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/v1/auth/register` | Register new admin/operator user account | No |
+| `POST` | `/api/v1/auth/login` | Login user & issue HTTP-only JWT cookie | No |
+| `POST` | `/api/v1/auth/logout` | Revoke session cookie | Yes |
+| `GET` | `/api/v1/auth/me` | Fetch authenticated user profile | Cookie |
+| `POST` | `/api/v1/proxy` | Register dynamic subdomain upstream proxy route | Cookie |
+| `GET` | `/*` | Host-header based reverse proxy route | Bearer Token / Session |
+
+### Python Inference API (`http://localhost:8000`)
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/health` | Inference service health check |
+| `POST` | `/v1/evaluate` | Synchronous event risk scoring endpoint |
+| `GET` | `/v1/metrics` | Snapshot of operational metrics & latency |
+| `GET` | `/v1/risk-cards` | Retrieve recent security Risk Cards |
+| `POST` | `/v1/risk-cards/{id}/investigate` | Trigger Ollama AI Threat Hunter investigation |
+| `POST` | `/v1/risk-cards/{id}/policy-recommendation` | Generate adaptive policy proposal |
+| `POST` | `/v1/policy-recommendations/{id}/approve` | Approve and activate policy proposal |
+| `GET` | `/v1/identities` | List monitored identities and trust scores |
+| `POST` | `/v1/identities/{id}/revoke` | Instantly kill/revoke an identity's access |
+| `POST` | `/v1/identities/{id}/restore` | Restore access for a revoked identity |
+
+---
+
+## 🛡️ Target Scope & Security Guarantees
+
+SENTRA is specifically engineered for modern API, microservice, and AI/MCP workloads:
+- **Zero-Trust for AI Agents & MCP**: Evaluates scope contracts to ensure autonomous agents do not exceed authorized API boundaries or perform out-of-sequence actions.
+- **Continuous Trust Scoring**: Replaces static binary permissions with continuous 0–100 risk scoring.
+- **Upstream Shielding**: Upstream backend microservices remain on isolated private networks; unauthorized or malicious traffic is blocked at the gateway, shielding upstream infrastructure from load and zero-day exploitation.
+
+---
+
+## 📄 License
+
+This repository is proprietary software developed for the SENTRA zero-trust authorization prototype.
