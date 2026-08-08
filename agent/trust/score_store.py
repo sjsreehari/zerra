@@ -19,6 +19,9 @@ class TrustScoreStore:
             self._states[identity_id] = ScoreState(identity_id=identity_id, last_updated=datetime.now(timezone.utc))
         return self._states[identity_id]
 
+    def get_score(self, identity_id: str) -> float:
+        return self.get_or_create(identity_id).trust_score
+
     def process(self, inputs: TrustScoreInputs) -> TrustScoreResult:
         state = self.get_or_create(inputs.identity_id)
         badness, factors = compute_weighted_badness(inputs)

@@ -3,19 +3,23 @@
 from datetime import datetime, timezone
 from uuid import uuid4
 
+import time
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 
 from agent.contracts import CallEvent, DecisionResponse, IdentityType
 from agent.agents import ThreatHunter
+from agent.attack_sim import AttackSimulator, fast_invoice_enumeration, normal_repeating_user_traffic
 from agent.main import create_demo_engine
 from agent.mock_data import AccessDeniedError, MockDataStore
 from agent.policy_recommendations import PolicyRecommendationService
 from agent.reports import render_markdown
 
 app = FastAPI(title="SENTRA Inference API", version="0.1.0")
-app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:3000"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(CORSMiddleware, 
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8080", "http://127.0.0.1:8080"],
+    allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 engine, metrics = create_demo_engine()
 data = MockDataStore()
 risk_cards = []
@@ -26,8 +30,10 @@ recommendation_service = PolicyRecommendationService()
 
 
 def evaluate(event: CallEvent) -> DecisionResponse:
+    start = time.perf_counter()
     decision = engine.evaluate(event)
-    metrics.record(decision=decision, latency_ms=0.0)
+    latency_ms = (time.perf_counter() - start) * 1000
+    metrics.record(decision=decision, latency_ms=latency_ms)
     if decision.risk_card:
         risk_cards.append(decision.risk_card)
     return decision
@@ -166,3 +172,70 @@ def export_admin(authorization: str | None = Header(default=None)):
     if not decision.allowed:
         raise HTTPException(403, detail=decision.model_dump(mode="json"))
     return {"decision": decision, "data": []}
+
+
+@app.get("/v1/attack-sim/scenarios")
+def list_scenarios():
+    return [
+        {"id": "normal_traffic", "name": "Normal User Traffic", "description": "Simulates normal repeating user behavior", "type": "benign"},
+        {"id": "fast_enumeration", "name": "Fast Invoice Enumeration", "description": "AI agent rapidly enumerates invoice IDs across tenants", "type": "attack"},
+    ]
+
+
+@app.post("/v1/attack-sim/run")
+def run_attack_sim(scenario_id: str = "fast_enumeration"):
+    simulator = AttackSimulator()
+    if scenario_id == "normal_traffic":
+        result = simulator.run(engine, normal_repeating_user_traffic(), metrics)
+    else:
+        result = simulator.run(engine, fast_invoice_enumeration(), metrics)
+    return {
+        "scenario_id": scenario_id,
+        "total_calls": result.total_calls,
+        "blocked": result.blocked,
+        "stepped_up": result.stepped_up,
+        "allowed": result.allowed,
+        "first_flagged_call": result.first_flagged_call,
+        "risk_cards_generated": len([c for c in risk_cards if c.verdict != "allow"]),
+        "metrics": metrics.snapshot().model_dump() if hasattr(metrics.snapshot(), 'model_dump') else vars(metrics.snapshot()),
+    }
+
+
+@app.get("/v1/policies")
+def get_policies():
+    return engine.policy_engine.list_policies()
+
+
+@app.get("/v1/trust-scores")
+def get_trust_scores():
+    identities = engine.registry.list_identities()
+    scores = []
+    for identity in identities:
+        trust_data = engine.trust_store.get_score(identity.id) if hasattr(engine.trust_store, 'get_score') else None
+        scores.append({
+            "identity_id": identity.id,
+            "identity_type": identity.type.value if hasattr(identity.type, 'value') else str(identity.type),
+            "display_name": identity.display_name or identity.id,
+            "trust_score": trust_data if isinstance(trust_data, (int, float)) else identity.trust_score,
+            "is_revoked": identity.is_revoked,
+        })
+    return scores
+
+
+@app.post("/v1/attack-replay")
+def replay_attack(risk_card_id: str):
+    """Replay a detected attack sequence to verify policies catch it."""
+    card = next((item for item in risk_cards if item.id == risk_card_id), None)
+    if card is None:
+        raise HTTPException(404, "risk card not found")
+    # Re-run the fast enumeration to prove it's still blocked
+    simulator = AttackSimulator()
+    result = simulator.run(engine, fast_invoice_enumeration(), metrics)
+    return {
+        "original_card_id": risk_card_id,
+        "replay_blocked": result.blocked > 0,
+        "replay_total_calls": result.total_calls,
+        "replay_blocked_count": result.blocked,
+        "replay_first_flagged": result.first_flagged_call,
+        "verdict": "attack_caught" if result.blocked > 0 else "attack_missed",
+    }
