@@ -208,10 +208,11 @@ go run ./cmd
 
 The service listens on port `8080` by default.
 
-For the Go gateway to enforce SENTRA decisions, start the Python service first and
-set `SENTRA_INFERENCE_URL=http://127.0.0.1:8000` (this is also the default). Every
-request to a registered proxy subdomain is evaluated before it can be forwarded;
-`step_up` and `block` decisions are returned by the gateway instead of proxied.
+The reverse proxy works independently of SENTRA inference. To enforce SENTRA
+decisions, set `SENTRA_INFERENCE_ENABLED=true` and start the Python service with
+`SENTRA_INFERENCE_URL=http://127.0.0.1:8000`. Every registered subdomain request
+is then evaluated before forwarding; `step_up` and `block` decisions are returned
+by the gateway instead of proxied.
 
 ## Run the frontend
 

@@ -1,84 +1,13 @@
-// Package inference is the small Go-to-Python boundary for SENTRA decisions.
 package inference
 
-import (
-	"bytes"
-	"context"
-	"encoding/json"
-	"fmt"
-	"net/http"
-	"strings"
-	"time"
-)
+import ("bytes"; "context"; "encoding/json"; "fmt"; "net/http"; "strings"; "time")
 
-type Client struct {
-	baseURL string
-	http    *http.Client
-}
+type Client struct{ baseURL string; http *http.Client }
+type Decision struct { Verdict string `json:"verdict"`; Reason string `json:"reason"`; Raw json.RawMessage }
+type CallEvent struct { ID string `json:"id"`; IdentityID string `json:"identity_id"`; IdentityType string `json:"identity_type"`; Timestamp string `json:"timestamp"`; Endpoint string `json:"endpoint"`; Method string `json:"method"`; ObjectID string `json:"object_id,omitempty"`; ObjectType string `json:"object_type,omitempty"`; TenantID string `json:"tenant_id,omitempty"`; Metadata map[string]any `json:"metadata"` }
 
-type decision struct {
-	Verdict string `json:"verdict"`
-	Reason  string `json:"reason"`
-}
-
-type callEvent struct {
-	ID           string `json:"id"`
-	IdentityID   string `json:"identity_id"`
-	IdentityType string `json:"identity_type"`
-	Timestamp    string `json:"timestamp"`
-	Endpoint     string `json:"endpoint"`
-	Method       string `json:"method"`
-	ObjectID     string `json:"object_id,omitempty"`
-	ObjectType   string `json:"object_type,omitempty"`
-	TenantID     string `json:"tenant_id,omitempty"`
-}
-
-func New(baseURL string) *Client {
-	return &Client{baseURL: strings.TrimRight(baseURL, "/"), http: &http.Client{Timeout: 3 * time.Second}}
-}
-
-// Evaluate converts a proxied request into the canonical event accepted by the
-// local Python engine. This intentionally uses only demo bearer-token mappings.
-func (c *Client) Evaluate(ctx context.Context, request *http.Request) (string, string, error) {
-	identityID, identityType := identityFromToken(request.Header.Get("Authorization"))
-	objectID, objectType, tenantID := objectFromPath(request.URL.Path)
-	payload := callEvent{ID: fmt.Sprintf("proxy-%d", time.Now().UnixNano()), IdentityID: identityID,
-		IdentityType: identityType, Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
-		Endpoint: request.URL.Path, Method: request.Method, ObjectID: objectID, ObjectType: objectType, TenantID: tenantID}
-	body, err := json.Marshal(payload)
-	if err != nil { return "", "", err }
-	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/v1/evaluate", bytes.NewReader(body))
-	if err != nil { return "", "", err }
-	httpRequest.Header.Set("Content-Type", "application/json")
-	response, err := c.http.Do(httpRequest)
-	if err != nil { return "", "", err }
-	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK { return "", "", fmt.Errorf("inference returned %s", response.Status) }
-	var result decision
-	if err := json.NewDecoder(response.Body).Decode(&result); err != nil { return "", "", err }
-	return result.Verdict, result.Reason, nil
-}
-
-func identityFromToken(header string) (string, string) {
-	identities := map[string][2]string{
-		"Bearer demo-human-token": {"human-alice", "human"},
-		"Bearer demo-billing-token": {"billing-service", "service"},
-		"Bearer demo-finance-agent-token": {"finance-agent", "agent"},
-		"Bearer demo-attacker-token": {"attacker-agent", "agent"},
-	}
-	identity, ok := identities[header]
-	if !ok {
-		return "unknown", "human"
-	}
-	return identity[0], identity[1]
-}
-
-func objectFromPath(path string) (string, string, string) {
-	parts := strings.Split(strings.Trim(path, "/"), "/")
-	if len(parts) != 2 || parts[0] != "invoices" { return "", "", "" }
-	tenant := ""
-	if strings.HasPrefix(parts[1], "inv-a-") { tenant = "tenant-a" }
-	if strings.HasPrefix(parts[1], "inv-b-") { tenant = "tenant-b" }
-	if strings.HasPrefix(parts[1], "inv-c-") { tenant = "tenant-c" }
-	return parts[1], "invoice", tenant
-}
+func New(baseURL string)*Client{return &Client{baseURL:strings.TrimRight(baseURL,"/"),http:&http.Client{Timeout:3*time.Second}}}
+func (c *Client) BuildEvent(request *http.Request,id string) CallEvent { identityID,identityType:=identityFromToken(request.Header.Get("Authorization")); objectID,objectType,tenantID:=objectFromPath(request.URL.Path); pageSize:=request.URL.Query().Get("page_size"); return CallEvent{ID:id,IdentityID:identityID,IdentityType:identityType,Timestamp:time.Now().UTC().Format(time.RFC3339Nano),Endpoint:request.URL.Path,Method:request.Method,ObjectID:objectID,ObjectType:objectType,TenantID:tenantID,Metadata:map[string]any{"source_ip":request.RemoteAddr,"request_size_bytes":request.ContentLength,"page_size":pageSize}} }
+func (c *Client) Evaluate(ctx context.Context,event CallEvent)(Decision,error){body,err:=json.Marshal(event);if err!=nil{return Decision{},err};req,err:=http.NewRequestWithContext(ctx,http.MethodPost,c.baseURL+"/v1/evaluate",bytes.NewReader(body));if err!=nil{return Decision{},err};req.Header.Set("Content-Type","application/json");resp,err:=c.http.Do(req);if err!=nil{return Decision{},err};defer resp.Body.Close();var raw json.RawMessage;if err=json.NewDecoder(resp.Body).Decode(&raw);err!=nil{return Decision{},err};var decision Decision;if err=json.Unmarshal(raw,&decision);err!=nil{return Decision{},err};if resp.StatusCode!=http.StatusOK||decision.Verdict!="allow"&&decision.Verdict!="step_up"&&decision.Verdict!="block"{return Decision{},fmt.Errorf("invalid inference response")};decision.Raw=raw;return decision,nil}
+func identityFromToken(header string)(string,string){m:=map[string][2]string{"Bearer demo-human-token":{"human-alice","human"},"Bearer demo-billing-token":{"billing-service","service"},"Bearer demo-finance-agent-token":{"finance-agent","agent"},"Bearer demo-attacker-token":{"attacker-agent","agent"}};v,ok:=m[header];if !ok{return "unknown","human"};return v[0],v[1]}
+func objectFromPath(path string)(string,string,string){p:=strings.Split(strings.Trim(path,"/"),"/");if len(p)!=2||p[0]!="invoices"{return "","",""};t:="";if strings.HasPrefix(p[1],"inv-a-"){t="tenant-a"};if strings.HasPrefix(p[1],"inv-b-"){t="tenant-b"};if strings.HasPrefix(p[1],"inv-c-"){t="tenant-c"};return p[1],"invoice",t}

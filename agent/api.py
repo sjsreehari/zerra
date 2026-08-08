@@ -5,16 +5,24 @@ from uuid import uuid4
 
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
 
 from agent.contracts import CallEvent, DecisionResponse, IdentityType
+from agent.agents import ThreatHunter
 from agent.main import create_demo_engine
 from agent.mock_data import AccessDeniedError, MockDataStore
+from agent.policy_recommendations import PolicyRecommendationService
+from agent.reports import render_markdown
 
 app = FastAPI(title="SENTRA Inference API", version="0.1.0")
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:3000"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 engine, metrics = create_demo_engine()
 data = MockDataStore()
 risk_cards = []
+investigations = {}
+recommendations = {}
+threat_hunter = ThreatHunter()
+recommendation_service = PolicyRecommendationService()
 
 
 def evaluate(event: CallEvent) -> DecisionResponse:
@@ -43,6 +51,53 @@ def get_metrics():
 @app.get("/v1/risk-cards")
 def get_risk_cards():
     return list(reversed(risk_cards[-100:]))
+
+
+@app.get("/v1/llm/health")
+def llm_health():
+    return threat_hunter.client.health()
+
+
+@app.post("/v1/risk-cards/{risk_card_id}/investigate")
+def investigate(risk_card_id: str):
+    card = next((item for item in risk_cards if item.id == risk_card_id), None)
+    if card is None:
+        raise HTTPException(404, "risk card not found")
+    result = threat_hunter.investigate(card)
+    investigations[risk_card_id] = result
+    return result
+
+
+@app.post("/v1/risk-cards/{risk_card_id}/policy-recommendation")
+def recommend_policy(risk_card_id: str):
+    card = next((item for item in risk_cards if item.id == risk_card_id), None)
+    if card is None:
+        raise HTTPException(404, "risk card not found")
+    recommendation = recommendation_service.propose(card)
+    recommendations[recommendation.id] = recommendation
+    return recommendation
+
+
+@app.post("/v1/policy-recommendations/{recommendation_id}/approve")
+def approve_policy(recommendation_id: str):
+    recommendation = recommendations.get(recommendation_id)
+    if recommendation is None:
+        raise HTTPException(404, "policy recommendation not found")
+    if not recommendation.approved:
+        active = recommendation.policy.model_copy(update={"status": "active"})
+        engine.policy_engine.add_policy(active)
+        recommendation = recommendation.model_copy(update={"policy": active, "approved": True})
+        recommendations[recommendation_id] = recommendation
+    return recommendation
+
+
+@app.get("/v1/risk-cards/{risk_card_id}/report", response_class=PlainTextResponse)
+def incident_report(risk_card_id: str):
+    card = next((item for item in risk_cards if item.id == risk_card_id), None)
+    if card is None:
+        raise HTTPException(404, "risk card not found")
+    investigation = investigations.get(risk_card_id) or threat_hunter.investigate(card)
+    return render_markdown(card, investigation)
 
 
 @app.get("/v1/identities")

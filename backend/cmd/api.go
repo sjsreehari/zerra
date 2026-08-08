@@ -56,10 +56,14 @@ func (app *application) mount() http.Handler {
 	// host forwards every path, including paths such as / and /health.
 	proxyService := proxyModule.NewService(proxyModule.NewRepository(app.db))
 	inferenceURL := os.Getenv("SENTRA_INFERENCE_URL")
-	if inferenceURL == "" {
-		inferenceURL = "http://127.0.0.1:8000"
+	inferenceEnabled := os.Getenv("SENTRA_INFERENCE_ENABLED") == "true"
+	var inferenceClient *inferenceAdapter.Client
+	if inferenceEnabled {
+		if inferenceURL == "" {
+			inferenceURL = "http://127.0.0.1:8000"
+		}
+		inferenceClient = inferenceAdapter.New(inferenceURL)
 	}
-	inferenceClient := inferenceAdapter.New(inferenceURL)
 	r.Use(func(c *gin.Context) {
 		subdomain := proxyAdapter.SubdomainFromHost(c.Request.Host)
 		if subdomain == "" {
@@ -78,17 +82,21 @@ func (app *application) mount() http.Handler {
 			return
 		}
 
-		verdict, reason, err := inferenceClient.Evaluate(c.Request.Context(), c.Request)
-		if err != nil {
-			log.Printf("inference unavailable for %q: %v", subdomain, err)
-			c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"error": "security inference unavailable"})
-			return
-		}
-		if verdict != "allow" {
-			status := http.StatusForbidden
-			if verdict == "step_up" { status = http.StatusUnauthorized }
-			c.AbortWithStatusJSON(status, gin.H{"verdict": verdict, "reason": reason})
-			return
+		if inferenceEnabled {
+			verdict, reason, err := inferenceClient.Evaluate(c.Request.Context(), c.Request)
+			if err != nil {
+				log.Printf("inference unavailable for %q: %v", subdomain, err)
+				c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"error": "security inference unavailable"})
+				return
+			}
+			if verdict != "allow" {
+				status := http.StatusForbidden
+				if verdict == "step_up" {
+					status = http.StatusUnauthorized
+				}
+				c.AbortWithStatusJSON(status, gin.H{"verdict": verdict, "reason": reason})
+				return
+			}
 		}
 
 		if err := proxyAdapter.Forward(c, route.ApiBaseUrl); err != nil {
