@@ -31,6 +31,9 @@ func main() {
 		log.Println("no local .env loaded; using process environment")
 	}
 	startTime = time.Now()
+	if len(os.Getenv("JWT_SECRET")) < 32 {
+		log.Fatal("JWT_SECRET must be at least 32 characters")
+	}
 
 	cfg := config{
 		addr: ":8080",

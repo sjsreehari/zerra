@@ -218,6 +218,7 @@ func (app *application) mount() http.Handler {
 		sentra.GET("/metrics", proxyGET("/v1/metrics"))
 		sentra.GET("/risk-cards", proxyGET("/v1/risk-cards"))
 		sentra.GET("/identities", proxyGET("/v1/identities"))
+		sentra.GET("/ollama", proxyGET("/v1/llm/health"))
 		sentra.GET("/policies", proxyGET("/v1/policies"))
 		sentra.GET("/trust-scores", proxyGET("/v1/trust-scores"))
 		sentra.GET("/attack-sim/scenarios", proxyGET("/v1/attack-sim/scenarios"))

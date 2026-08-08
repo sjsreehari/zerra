@@ -14,8 +14,8 @@ export default function LandingPage() {
       <section className="hero-content" id="home">
         <h1>Authorisation<br />That Understands Intent</h1>
         <p>Protect AI agents, users, and services with identity-aware authorization that understands behavior, not just requests.</p>
-        <a className="access-button" href="mailto:hello@zerra.dev">
-          <span>Get Early Access</span>
+        <a className="access-button" href="/login">
+          <span>Access Console</span>
           <span className="arrow" aria-hidden="true">↗</span>
         </a>
       </section>
