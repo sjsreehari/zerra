@@ -127,12 +127,10 @@ export default function ApisPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-white tracking-tight">API Reverse Proxies</h1>
-            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20">
-              {proxies.length} Registered
-            </span>
+            <h1 className="text-2xl font-bold text-text-primary tracking-tight">API Reverse Proxies</h1>
+            <span className="badge badge-info">{proxies.length} Registered</span>
           </div>
-          <p className="text-sm text-white/50 mt-1">
+          <p className="text-sm text-text-secondary mt-1">
             Map custom tenant subdomains to upstream target APIs with dynamic zero-trust proxying.
           </p>
         </div>
@@ -141,9 +139,9 @@ export default function ApisPage() {
           <button
             onClick={() => void loadProxies()}
             disabled={loading}
-            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white/70 text-sm font-medium hover:bg-white/10 transition-all disabled:opacity-50"
+            className="btn btn-ghost"
           >
-            <RefreshCw size={15} className={loading ? "animate-spin text-blue-400" : ""} />
+            <RefreshCw size={15} className={loading ? "animate-spin text-color-accent" : ""} />
             <span>Refresh</span>
           </button>
 
@@ -152,7 +150,7 @@ export default function ApisPage() {
               setIsAdding(!isAdding);
               setFormError("");
             }}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-medium text-sm shadow-lg shadow-blue-500/20 hover:opacity-95 transition-all"
+            className="btn btn-primary"
           >
             {isAdding ? <X size={18} /> : <Plus size={18} />}
             <span>{isAdding ? "Cancel" : "Register Subdomain"}</span>
@@ -162,26 +160,23 @@ export default function ApisPage() {
 
       {/* Add Subdomain Form */}
       {isAdding && (
-        <form
-          onSubmit={handleAddApi}
-          className="p-6 rounded-2xl bg-[#0a0e1a]/90 border border-blue-500/20 backdrop-blur-xl shadow-2xl space-y-5"
-        >
-          <div className="flex items-center justify-between border-b border-white/5 pb-4">
-            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-              <Waypoints className="text-blue-400" size={20} />
+        <form onSubmit={handleAddApi} className="card space-y-5">
+          <div className="flex items-center justify-between border-b border-border-default pb-4">
+            <h3 className="text-lg font-semibold text-text-primary flex items-center gap-2">
+              <Waypoints className="text-color-accent" size={20} />
               Register New Upstream API Subdomain
             </h3>
             <button
               type="button"
               onClick={() => setIsAdding(false)}
-              className="text-white/40 hover:text-white transition-colors"
+              className="text-text-muted hover:text-text-primary transition-colors"
             >
               <X size={18} />
             </button>
           </div>
 
           {(formError || submitError) && (
-            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-center gap-2">
+            <div className="status-bg-danger p-3 rounded-xl text-sm flex items-center gap-2">
               <AlertCircle size={16} />
               <span>{formError || submitError}</span>
             </div>
@@ -189,18 +184,18 @@ export default function ApisPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-white/70">Display Name / Service Label</label>
+              <label className="text-xs font-medium text-text-secondary">Display Name / Service Label</label>
               <input
                 type="text"
                 placeholder="e.g. Billing Service"
                 value={name}
                 onChange={(e) => handleNameChange(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/20 text-sm focus:outline-none focus:border-blue-500/50 transition-all"
+                className="input w-full"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-white/70">Subdomain Host Key *</label>
+              <label className="text-xs font-medium text-text-secondary">Subdomain Host Key *</label>
               <div className="relative">
                 <input
                   type="text"
@@ -208,40 +203,32 @@ export default function ApisPage() {
                   value={subdomain}
                   onChange={(e) => setSubdomain(slugify(e.target.value))}
                   required
-                  className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/20 text-sm focus:outline-none focus:border-blue-500/50 transition-all pr-28"
+                  className="input w-full pr-28"
                 />
-                <span className="absolute right-3 top-2.5 text-xs text-white/30 font-mono">
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-text-muted font-mono">
                   .{PROXY_BASE_DOMAIN}
                 </span>
               </div>
             </div>
 
             <div className="md:col-span-2 space-y-1.5">
-              <label className="text-xs font-medium text-white/70">Upstream Target Base URL *</label>
+              <label className="text-xs font-medium text-text-secondary">Upstream Target Base URL *</label>
               <input
                 type="url"
                 placeholder="e.g. https://my-deployment.vercel.app or http://upstream:8001"
                 value={upstreamUrl}
                 onChange={(e) => setUpstreamUrl(e.target.value)}
                 required
-                className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/20 text-sm focus:outline-none focus:border-blue-500/50 transition-all font-mono"
+                className="input w-full font-mono"
               />
             </div>
           </div>
 
           <div className="flex justify-end gap-3 pt-2">
-            <button
-              type="button"
-              onClick={() => setIsAdding(false)}
-              className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white/70 text-sm font-medium hover:bg-white/10 transition-all"
-            >
+            <button type="button" onClick={() => setIsAdding(false)} className="btn btn-secondary">
               Cancel
             </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="flex items-center gap-2 px-5 py-2 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-medium text-sm transition-all disabled:opacity-50"
-            >
+            <button type="submit" disabled={submitting} className="btn btn-primary">
               {submitting ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} />}
               <span>{submitting ? "Registering..." : "Save Route"}</span>
             </button>
@@ -251,15 +238,12 @@ export default function ApisPage() {
 
       {/* Error state */}
       {fetchError && (
-        <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-center justify-between">
+        <div className="status-bg-danger p-4 rounded-xl text-sm flex items-center justify-between">
           <div className="flex items-center gap-2">
             <AlertCircle size={18} />
             <span>Failed to load proxy routes: {fetchError}</span>
           </div>
-          <button
-            onClick={() => void loadProxies()}
-            className="px-3 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-xs font-medium transition-all"
-          >
+          <button onClick={() => void loadProxies()} className="btn btn-danger !py-1 !px-3 text-xs">
             Retry
           </button>
         </div>
@@ -268,25 +252,22 @@ export default function ApisPage() {
       {/* Loading state */}
       {loading && proxies.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16 space-y-3">
-          <div className="w-8 h-8 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
-          <p className="text-sm text-white/40 font-medium">Loading reverse proxy routes...</p>
+          <div className="w-8 h-8 border-2 border-border-default border-t-color-accent rounded-full animate-spin" />
+          <p className="text-sm text-text-muted font-medium">Loading reverse proxy routes...</p>
         </div>
       )}
 
       {/* Proxy Grid */}
       {!loading && proxies.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 px-4 rounded-2xl bg-[#0a0e1a]/60 border border-white/5 text-center">
-          <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 mb-3">
+        <div className="flex flex-col items-center justify-center py-16 px-4 rounded-2xl bg-bg-surface-sunken border border-border-default text-center">
+          <div className="w-12 h-12 rounded-2xl bg-info-bg border border-info-border flex items-center justify-center text-info-text mb-3">
             <Globe size={24} />
           </div>
-          <h3 className="text-base font-semibold text-white">No Proxy Subdomains Registered</h3>
-          <p className="text-xs text-white/40 max-w-md mt-1 mb-4">
-            Register your first upstream API subdomain to route requests through the SENTRA zero-trust security proxy.
+          <h3 className="text-base font-semibold text-text-primary">No Proxy Subdomains Registered</h3>
+          <p className="text-xs text-text-muted max-w-md mt-1 mb-4">
+            Register your first upstream API subdomain to route requests through the zero-trust security proxy.
           </p>
-          <button
-            onClick={() => setIsAdding(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-500/20 border border-blue-500/30 text-blue-400 text-sm font-medium hover:bg-blue-500/30 transition-all"
-          >
+          <button onClick={() => setIsAdding(true)} className="btn btn-secondary">
             <Plus size={16} />
             <span>Register Subdomain</span>
           </button>
@@ -297,22 +278,19 @@ export default function ApisPage() {
             const gatewayUrl = proxyUrlFor(proxy.subdomain);
 
             return (
-              <div
-                key={proxy.id || proxy.subdomain}
-                className="p-5 rounded-2xl bg-[#0a0e1a]/80 border border-white/5 hover:border-blue-500/30 transition-all group backdrop-blur-xl flex flex-col justify-between"
-              >
+              <div key={proxy.id || proxy.subdomain} className="card flex flex-col justify-between">
                 <div className="space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400 font-bold text-sm">
+                      <div className="w-9 h-9 rounded-xl bg-info-bg border border-info-border flex items-center justify-center text-info-text font-bold text-sm">
                         {proxy.subdomain.charAt(0).toUpperCase()}
                       </div>
                       <div>
-                        <h4 className="font-semibold text-white text-sm capitalize">
+                        <h4 className="font-semibold text-text-primary text-sm capitalize">
                           {proxy.subdomain} Subdomain
                         </h4>
-                        <span className="inline-flex items-center gap-1.5 text-[10px] text-emerald-400 font-medium mt-0.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        <span className="inline-flex items-center gap-1.5 text-[10px] status-text-success mt-0.5">
+                          <span className="dot dot-success animate-pulse" />
                           Active Shield Proxy
                         </span>
                       </div>
@@ -320,37 +298,37 @@ export default function ApisPage() {
 
                     <button
                       onClick={() => copyToClipboard(proxy.id || proxy.subdomain, gatewayUrl)}
-                      className="p-2 rounded-lg bg-white/5 border border-white/10 text-white/50 hover:text-white hover:bg-white/10 transition-all"
+                      className="btn btn-ghost !p-2"
                       title="Copy Proxy URL"
                     >
                       {copiedId === (proxy.id || proxy.subdomain) ? (
-                        <Check size={14} className="text-emerald-400" />
+                        <Check size={14} className="status-text-success" />
                       ) : (
                         <Copy size={14} />
                       )}
                     </button>
                   </div>
 
-                  <div className="space-y-2 pt-2 border-t border-white/5 text-xs font-mono">
+                  <div className="space-y-2 pt-2 border-t border-border-default text-xs font-mono">
                     <div>
-                      <span className="text-[10px] uppercase text-white/40 font-sans tracking-wider block mb-0.5">
+                      <span className="text-[10px] uppercase text-text-muted font-sans tracking-wider block mb-0.5">
                         Gateway Ingress Host
                       </span>
                       <a
                         href={gatewayUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-blue-400 hover:underline truncate block"
+                        className="text-link hover:underline truncate block"
                       >
                         {gatewayUrl}
                       </a>
                     </div>
 
                     <div>
-                      <span className="text-[10px] uppercase text-white/40 font-sans tracking-wider block mb-0.5">
+                      <span className="text-[10px] uppercase text-text-muted font-sans tracking-wider block mb-0.5">
                         Upstream Destination Target
                       </span>
-                      <span className="text-white/70 truncate block">{proxy.api_base_url}</span>
+                      <span className="text-text-secondary truncate block">{proxy.api_base_url}</span>
                     </div>
                   </div>
                 </div>
