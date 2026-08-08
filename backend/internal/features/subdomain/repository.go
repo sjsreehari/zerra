@@ -32,8 +32,8 @@ func (r *repository) CreateNewReverseProxy(ctx context.Context, proxy ReversePro
 
 	return proxy, nil
 }
-
-
+// FindBySubdomain returns the upstream route registered for a tenant subdomain.
+// Comparison is case-insensitive because DNS host names are case-insensitive.
 func (r *repository) FindBySubdomain(ctx context.Context, subdomain string) (ReverseProxy, error) {
 	const query = `
 		SELECT id, subdomain, api_base_url

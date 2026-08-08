@@ -27,5 +27,4 @@ func (rtr *Router) Register(rg *gin.RouterGroup) {
 	handler := NewHandler(service)
 
 	rg.POST("", handler.CreateNewReverseProxy)
-	rg.GET("/resolve", handler.ResolveSubdomain)
 }

@@ -45,30 +45,3 @@ func (h *Handler) CreateNewReverseProxy(c *gin.Context) {
 		"data": domain,
 	})
 }
-
-// ResolveSubdomain looks up a subdomain and returns its api_base_url for Nginx routing
-func (h *Handler) ResolveSubdomain(c *gin.Context) {
-	subdomain := c.Query("subdomain")
-	if subdomain == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "subdomain query parameter required",
-		})
-		return
-	}
-
-	proxy, err := h.svc.FindBySubdomain(c.Request.Context(), subdomain)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"success": false,
-			"message": "Subdomain not found",
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"subdomain": proxy.Subdomain,
-		"api_base_url": proxy.ApiBaseUrl,
-	})
-}
