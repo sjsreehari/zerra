@@ -46,7 +46,11 @@ func main() {
 
 	// DATABASE CONNECTION
 
-	conn := databseAdapter.PostgresConnection(cfg.db.dsn)
+	conn, err := databseAdapter.PostgresConnection(cfg.db.dsn)
+	if err != nil {
+		logger.Error("database connection failed: " + err.Error())
+		os.Exit(1)
+	}
 
 	// WARNING:
 	// 		Uncomment this in production

@@ -203,17 +203,7 @@ func (app *application) mount() http.Handler {
 			}
 		}
 
-		// Proxy POST endpoints to inference service  
-		proxyPOST := func(inferPath string) gin.HandlerFunc {
-			return func(c *gin.Context) {
-				body, status, err := inferenceClient.ProxyPOST(c.Request.Context(), inferPath, c.Request.Body)
-				if err != nil {
-					c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
-					return
-				}
-				c.Data(status, "application/json", body)
-			}
-		}
+		// Proxy POST endpoints to inference service (inline handlers used below)
 
 		sentra.GET("/metrics", proxyGET("/v1/metrics"))
 		sentra.GET("/risk-cards", proxyGET("/v1/risk-cards"))
