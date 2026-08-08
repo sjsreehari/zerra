@@ -5,10 +5,9 @@ authorization layer intended to protect APIs, services, AI agents, and MCP
 servers. SENTRA evaluates the identity, target object, and request sequence—not
 only the current request—to decide whether to allow, step-up, or block access.
 
-> Current state: the Python security engines are implemented and tested as
-> standalone modules. The Go backend contains the beginning of a dynamic reverse
-> proxy. The Next.js dashboard is still the starter application. The full
-> request-to-inference-to-dashboard product flow has not yet been wired together.
+> Current state: the Docker Compose stack runs the Go gateway, PostgreSQL,
+> Python inference service, protected upstream, and an authenticated Next.js
+> console. Management and intelligence APIs use HTTP-only JWT session cookies.
 
 ## Repository layout
 
@@ -84,6 +83,19 @@ python -B -m pytest -p no:cacheprovider agent -q
 ```
 
 ## Run the local SENTRA demo
+
+### Configure runtime environment
+
+The root `.env` is the single local configuration file. It already contains
+safe local defaults; copy `.env.example` when setting up another machine.
+
+For Ollama hosted on another machine, replace `OLLAMA_BASE_URL` with the HTTPS
+URL provided by that machine's VS Code tunnel. The analyst integration is
+optional: enforcement remains deterministic and the Threat Hunter returns a
+safe fallback investigation when Ollama is unavailable.
+
+`JWT_SECRET` must be a unique, random value of at least 32 characters in every
+non-local environment.
 
 Start the in-memory inference and protected-demo API in one terminal:
 
@@ -228,6 +240,23 @@ Optionally set `NEXT_PUBLIC_SENTRA_URL=http://127.0.0.1:8000` before starting th
 frontend. The dashboard polls the local inference service for identity trust,
 metrics, and Risk Cards, and exposes the identity kill switch.
 
+The production-like local flow uses the browser console instead:
+
+1. Start the Compose stack below.
+2. Open `http://localhost:3000/login` and register an account.
+3. The gateway sets an HTTP-only JWT cookie; the console reads authenticated
+   SENTRA metrics, identities, Risk Cards, and Ollama availability through the
+   gateway without exposing a session token to JavaScript.
+
+Authentication endpoints:
+
+```text
+POST /api/v1/auth/register
+POST /api/v1/auth/login
+POST /api/v1/auth/logout
+GET  /api/v1/auth/me
+```
+
 ## One-command container pipeline and real flow test
 
 The Compose stack models the complete local traffic path:
@@ -250,6 +279,8 @@ python tests/e2e_pipeline.py
 docker compose down -v
 ```
 
+Include the frontend console with `docker compose --profile frontend up --build`.
+
 The E2E script performs real HTTP requests—not syntax checks—and verifies:
 
 1. a permitted human request reaches the private upstream through Go;
@@ -267,9 +298,10 @@ curl -H "Host: qroasis.gateway.test" -H "Authorization: Bearer demo-human-token"
 The upstream service has no published host port. It is available only on the
 internal Compose network, forcing all external traffic through the Go gateway.
 
-The current frontend is the default Next.js screen. The next product milestone is
-to replace it with the SENTRA dashboard: live request feed, per-identity trust
-score, Risk Card feed, attack metrics, and agent kill-switch.
+The frontend includes an authenticated security overview with live metrics,
+identity trust, recent Risk Cards, and Ollama analyst status. The protected
+gateway endpoints remain available for extending the console with investigation,
+policy, and identity-management controls.
 
 ## Recommended next implementation milestone
 
