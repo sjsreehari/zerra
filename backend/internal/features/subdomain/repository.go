@@ -8,6 +8,7 @@ import (
 type Repository interface {
 	CreateNewReverseProxy(ctx context.Context, proxy ReverseProxy) (ReverseProxy, error)
 	FindBySubdomain(ctx context.Context, subdomain string) (ReverseProxy, error)
+	FindAll(ctx context.Context) ([]ReverseProxy, error)
 }
 
 type repository struct {
@@ -53,4 +54,32 @@ func (r *repository) FindBySubdomain(ctx context.Context, subdomain string) (Rev
 	}
 
 	return proxy, nil
+}
+
+func (r *repository) FindAll(ctx context.Context) ([]ReverseProxy, error) {
+	const query = `
+		SELECT id, subdomain, api_base_url
+		FROM proxy
+		ORDER BY id DESC
+	`
+
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var proxies []ReverseProxy
+	for rows.Next() {
+		var p ReverseProxy
+		if err := rows.Scan(&p.ID, &p.Subdomain, &p.ApiBaseUrl); err != nil {
+			continue
+		}
+		proxies = append(proxies, p)
+	}
+	if proxies == nil {
+		proxies = []ReverseProxy{}
+	}
+
+	return proxies, nil
 }

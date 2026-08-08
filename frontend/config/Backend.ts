@@ -1,4 +1,5 @@
 const SENTRA_API = process.env.NEXT_PUBLIC_SENTRA_URL || "http://localhost:8000";
+const GO_API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 export const APIENDPOINT = {
   Health: `${SENTRA_API}/health`,
@@ -17,4 +18,5 @@ export const APIENDPOINT = {
   RevokeIdentity: (id: string) => `${SENTRA_API}/v1/identities/${id}/revoke`,
   RestoreIdentity: (id: string) => `${SENTRA_API}/v1/identities/${id}/restore`,
   AttackReplay: `${SENTRA_API}/v1/attack-replay`,
+  Proxy: `${GO_API}/api/v1/proxy`,
 };

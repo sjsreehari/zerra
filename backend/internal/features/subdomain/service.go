@@ -7,6 +7,7 @@ import (
 type Service interface {
 	CreateNewReverseProxy(ctx context.Context, req ExecuteInstanceRequest) (ReverseProxy, error)
 	FindBySubdomain(ctx context.Context, subdomain string) (ReverseProxy, error)
+	FindAll(ctx context.Context) ([]ReverseProxy, error)
 }
 
 type service struct {
@@ -33,4 +34,8 @@ func (s *service) CreateNewReverseProxy(ctx context.Context, req ExecuteInstance
 
 func (s *service) FindBySubdomain(ctx context.Context, subdomain string) (ReverseProxy, error) {
 	return s.repo.FindBySubdomain(ctx, subdomain)
+}
+
+func (s *service) FindAll(ctx context.Context) ([]ReverseProxy, error) {
+	return s.repo.FindAll(ctx)
 }

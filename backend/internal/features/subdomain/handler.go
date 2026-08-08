@@ -45,3 +45,23 @@ func (h *Handler) CreateNewReverseProxy(c *gin.Context) {
 		"data": domain,
 	})
 }
+
+func (h *Handler) ListAllReverseProxies(c *gin.Context) {
+	list, err := h.svc.FindAll(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"status": 500,
+			"message": "Internal Server error",
+			"data": nil,
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"status": 200,
+		"message": "Subdomains fetched successfully",
+		"data": list,
+	})
+}
