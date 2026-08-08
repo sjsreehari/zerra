@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"net/mail"
 	"strings"
 	"time"
@@ -81,11 +82,14 @@ func (s *Service) Login(email, password string) (User, error) {
 	var user User
 	var hash string
 	err := s.db.QueryRow(`SELECT id, email, name, password_hash FROM users WHERE LOWER(email) = LOWER($1)`, email).Scan(&user.ID, &user.Email, &user.Name, &hash)
-	if err == sql.ErrNoRows || bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) != nil {
+	if err == sql.ErrNoRows {
 		return User{}, ErrInvalidCredentials
 	}
 	if err != nil {
 		return User{}, err
+	}
+	if bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) != nil {
+		return User{}, ErrInvalidCredentials
 	}
 	return user, nil
 }
