@@ -85,6 +85,7 @@ func (app *application) mount() http.Handler {
 			return
 		}
 
+<<<<<<< HEAD
 		if inferenceEnabled {
 			event := inferenceClient.BuildEvent(c.Request, "")
 			eventJSON, _ := json.Marshal(event)
@@ -114,6 +115,26 @@ func (app *application) mount() http.Handler {
 			}
 			c.Set("traffic_log_id", logID)
 			c.Set("agent_output", decision)
+=======
+		// Skip inference in development mode
+		if os.Getenv("SKIP_INFERENCE") != "true" {
+			verdict, reason, err := inferenceClient.Evaluate(c.Request.Context(), c.Request)
+			if err != nil {
+				log.Printf("inference unavailable for %q: %v", subdomain, err)
+				c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"error": "security inference unavailable"})
+				return
+			}
+			if verdict != "allow" {
+				status := http.StatusForbidden
+				if verdict == "step_up" {
+					status = http.StatusUnauthorized
+				}
+				c.AbortWithStatusJSON(status, gin.H{"verdict": verdict, "reason": reason})
+				return
+			}
+		} else {
+			log.Printf("skipping inference for %q (dev mode)", subdomain)
+>>>>>>> a7df7b8d1b124473aa59a827660d9ca0e910f4bc
 		}
 
 		if err := proxyAdapter.Forward(c, route.ApiBaseUrl); err != nil {
