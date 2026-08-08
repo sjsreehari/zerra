@@ -110,7 +110,7 @@ export default function DashboardPage() {
       if (clearMessage) setMessage("");
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
-        window.location.assign("/login");
+        setMessage("Authentication required. Please sign in to access the security console.");
         return;
       }
       setMessage(error instanceof Error ? error.message : "Security intelligence is unavailable.");

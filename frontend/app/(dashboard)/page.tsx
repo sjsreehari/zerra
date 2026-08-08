@@ -1,5 +1,4 @@
-import { redirect } from "next/navigation";
-
+// Unused route group file retained for layout compatibility if needed.
 export default function Page() {
-  redirect("/dashboard");
+  return null;
 }
