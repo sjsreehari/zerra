@@ -32,7 +32,8 @@ func main() {
 	}
 	startTime = time.Now()
 	if len(os.Getenv("JWT_SECRET")) < 32 {
-		log.Fatal("JWT_SECRET must be at least 32 characters")
+		log.Println("JWT_SECRET missing or < 32 chars; using local development default secret")
+		os.Setenv("JWT_SECRET", "sentra_default_local_development_jwt_secret_32chars_minimum!")
 	}
 
 	cfg := config{

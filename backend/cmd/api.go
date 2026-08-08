@@ -15,10 +15,10 @@ import (
 	inferenceAdapter "github.com/sjsreehari/zerra/internal/adapters/inference"
 	authFeature "github.com/sjsreehari/zerra/internal/features/auth"
 	trafficlog "github.com/sjsreehari/zerra/internal/features/trafficlog"
-	scannerAdapter "github.com/sjsreehari/zerra/internal/adapters/scanner"
-	securityscanFeature "github.com/sjsreehari/zerra/internal/features/securityscan"
+	// scannerAdapter "github.com/sjsreehari/zerra/internal/adapters/scanner"
+	// securityscanFeature "github.com/sjsreehari/zerra/internal/features/securityscan"
 	proxyAdapter "github.com/sjsreehari/zerra/internal/adapters/proxy"
-	containerModule "github.com/sjsreehari/zerra/internal/features/container"
+	// containerModule "github.com/sjsreehari/zerra/internal/features/container"
 	proxyModule "github.com/sjsreehari/zerra/internal/features/subdomain"
 	routers "github.com/sjsreehari/zerra/internal/interfaces"
 )
@@ -161,8 +161,8 @@ func (app *application) mount() http.Handler {
 	protected.Use(authFeature.Require(authService))
 	protected.GET("/auth/me", authHandler.Me)
 	protected.POST("/auth/logout", authHandler.Logout)
-	// Targets are resolved only through the proxy table. The scanner runner has
-	// no client-controlled image, command, mount, headers, or target URL.
+	// Commented out non-proxy modules (securityscan runner / docker scanner)
+	/*
 	var runner securityscanFeature.Runner
 	dockerClient, err := scannerAdapter.NewDockerClient()
 	if err != nil {
@@ -175,9 +175,11 @@ func (app *application) mount() http.Handler {
 		securityscanFeature.DefaultLimits(), os.Getenv("SAFE_ACTIVE_SCANS_ENABLED") == "true",
 	)
 	securityscanFeature.Register(protected.Group("/security-scans"), securityscanFeature.NewHandler(scanService))
+	*/
 
+	// Proxy module is kept active; non-proxy modules (containerModule) commented out
 	modules := []routers.RouterInterface{
-		containerModule.NewRouter(app.db),
+		// containerModule.NewRouter(app.db),
 		proxyModule.NewRouter(app.db),
 	}
 
