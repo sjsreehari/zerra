@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8080";
+const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 
 type User = { name: string; email: string };
 type Metrics = { requests_scored?: number; blocked?: number; step_up?: number };
