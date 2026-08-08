@@ -13,6 +13,7 @@ import (
     inferenceAdapter "github.com/sjsreehari/zerra/internal/adapters/inference"
     // trafficlog "github.com/sjsreehari/zerra/internal/features/trafficlog"
     proxyAdapter "github.com/sjsreehari/zerra/internal/adapters/proxy"
+    securityscanFeature "github.com/sjsreehari/zerra/internal/features/securityscan"
     // containerModule "github.com/sjsreehari/zerra/internal/features/container"
     proxyModule "github.com/sjsreehari/zerra/internal/features/subdomain"
     routers "github.com/sjsreehari/zerra/internal/interfaces"
@@ -154,22 +155,16 @@ func (app *application) mount() http.Handler {
 
     api := r.Group("/api/v1")
 
-    // --- Security scan feature disabled ---
-    // Targets are resolved only through the proxy table. The scanner runner has
-    // no client-controlled image, command, mount, headers, or target URL.
-    // var runner securityscanFeature.Runner
-    // dockerClient, err := scannerAdapter.NewDockerClient()
-    // if err != nil {
-    //     runner = securityscanFeature.UnavailableRunner{Err: err}
-    // } else {
-    //     runner = scannerAdapter.NewDockerRunner(dockerClient)
-    // }
-    // scanService := securityscanFeature.NewService(
-    //     securityscanFeature.PostgresRepository{DB: app.db}, scannerAdapter.NewTargetGuard(), runner,
-    //     securityscanFeature.DefaultLimits(), os.Getenv("SAFE_ACTIVE_SCANS_ENABLED") == "true",
-    // )
-    // securityscanFeature.Register(api.Group("/security-scans"), securityscanFeature.NewHandler(scanService))
-    // --- end security scan feature ---
+    // Security scan feature — uses UnavailableRunner when no Docker scanner is present.
+    // Targets are resolved only through the proxy table; no client-controlled URLs.
+    scanService := securityscanFeature.NewService(
+        securityscanFeature.PostgresRepository{DB: app.db},
+        securityscanFeature.NoopTargetGuard{},
+        securityscanFeature.UnavailableRunner{},
+        securityscanFeature.DefaultLimits(),
+        os.Getenv("SAFE_ACTIVE_SCANS_ENABLED") == "true",
+    )
+    securityscanFeature.Register(api.Group("/security-scans"), securityscanFeature.NewHandler(scanService))
 
     // --- Container feature disabled ---
     // Only the proxy/subdomain module is needed for now.

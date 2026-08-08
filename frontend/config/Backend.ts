@@ -19,4 +19,8 @@ export const APIENDPOINT = {
   RestoreIdentity: (id: string) => `${SENTRA_API}/v1/identities/${id}/restore`,
   AttackReplay: `${SENTRA_API}/v1/attack-replay`,
   Proxy: `${GO_API}/api/v1/proxy`,
+  SecurityScans: `${GO_API}/api/v1/security-scans`,
+  SecurityScanJob: (id: string) => `${GO_API}/api/v1/security-scans/${id}`,
+  SecurityScanFindings: (id: string) => `${GO_API}/api/v1/security-scans/${id}/findings`,
+  SecurityScanCancel: (id: string) => `${GO_API}/api/v1/security-scans/${id}/cancel`,
 };

@@ -14,6 +14,7 @@ func(s *Service) forget(id string){s.mu.Lock();defer s.mu.Unlock();delete(s.jobs
 func(s *Service) Cancel(ctx context.Context,id string)error{job,err:=s.repo.GetJob(ctx,id);if err!=nil{return err};if job.Status!=Queued&&job.Status!=Running{return ErrCannotCancel};s.mu.Lock();cancel:=s.jobs[id];s.mu.Unlock();if cancel==nil{return ErrCannotCancel};cancel();return nil}
 func(s *Service) Get(ctx context.Context,id string)(Job,error){return s.repo.GetJob(ctx,id)}
 func(s *Service) Findings(ctx context.Context,id string)([]Finding,error){return s.repo.GetFindings(ctx,id)}
+func(s *Service) ListJobs(ctx context.Context, subdomain string)([]Job,error){return s.repo.ListJobs(ctx,subdomain)}
 func sanitize(in []Finding)[]Finding{out:=make([]Finding,0,len(in));for _,f:=range in{f.Evidence=redactEvidence(f.Evidence);out=append(out,f)};return out}
 func redactEvidence(e map[string]any)map[string]any{out:=map[string]any{};for k,v:=range e{if containsSecret(strings.ToLower(k)){out[k]="[REDACTED]";continue};if nested,ok:=v.(map[string]any);ok{out[k]=redactEvidence(nested)}else{out[k]=v}};return out}
 func containsSecret(s string)bool{for _,needle:=range []string{"token","cookie","secret","password","authorization","body","ssn","salary","api_key"}{if strings.Contains(s,needle){return true}};return false}

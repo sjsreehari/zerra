@@ -16,3 +16,9 @@ func ValidateReport(report ScanReport, limits Limits) error {
 	}
 	return nil
 }
+
+// NoopTargetGuard accepts all targets. Use when no external scanner adapter is configured.
+type NoopTargetGuard struct{}
+
+func (NoopTargetGuard) Validate(_ string) error { return nil }
+

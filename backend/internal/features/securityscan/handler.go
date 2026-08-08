@@ -71,3 +71,16 @@ func (h *Handler) Cancel(c *gin.Context) {
 	}
 	c.JSON(202, gin.H{"status": "cancellation requested"})
 }
+
+func (h *Handler) List(c *gin.Context) {
+	subdomain := c.Query("subdomain")
+	jobs, err := h.service.ListJobs(c, subdomain)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "could not list scans"})
+		return
+	}
+	if jobs == nil {
+		jobs = []Job{}
+	}
+	c.JSON(200, jobs)
+}
