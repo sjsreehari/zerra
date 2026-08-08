@@ -12,7 +12,6 @@ services:
       retries: 20
     volumes:
       - ./backend/migrations:/docker-entrypoint-initdb.d:ro
-      - ./docker/postgres/003_seed_demo_proxy.sql:/docker-entrypoint-initdb.d/003_seed_demo_proxy.sql:ro
 
   inference:
     build:
@@ -39,14 +38,21 @@ services:
     environment:
       DB_CONN_STR: postgres://sentra:sentra-local-only@postgres:5432/sentra?sslmode=disable
       SENTRA_INFERENCE_URL: http://inference:8000
-      # The local development hostname is resolved by nip.io, so browser
-      # requests such as qroasis.127.0.0.1.nip.io:8080 enter the proxy.
-      BASE_DOMAIN: 127.0.0.1
+      BASE_DOMAIN: localhost
       ENVIRONMENT: development
-    ports: ["8080:8080"]
+      SKIP_INFERENCE: "true"
+    expose: ["8080"]
     depends_on:
       postgres: { condition: service_healthy }
       inference: { condition: service_healthy }
+
+  nginx:
+    image: nginx:alpine
+    ports: ["80:80"]
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - gateway
 
   dashboard:
     build:
@@ -56,4 +62,5 @@ services:
         NEXT_PUBLIC_SENTRA_URL: http://127.0.0.1:8000
     ports: ["3000:3000"]
     depends_on:
-      inference: { condition: service_healthy }
+      - inference
+    profiles: ["frontend"]
