@@ -46,7 +46,7 @@ func (app *application) mount() http.Handler {
 
 	// MIDDLEWARE
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:3000"},
+		AllowOrigins:     []string{"http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8000"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
@@ -59,13 +59,10 @@ func (app *application) mount() http.Handler {
 	proxyService := proxyModule.NewService(proxyModule.NewRepository(app.db))
 	inferenceURL := os.Getenv("SENTRA_INFERENCE_URL")
 	inferenceEnabled := os.Getenv("SENTRA_INFERENCE_ENABLED") != "false"
-	var inferenceClient *inferenceAdapter.Client
-	if inferenceEnabled {
-		if inferenceURL == "" {
-			inferenceURL = "http://127.0.0.1:8000"
-		}
-		inferenceClient = inferenceAdapter.New(inferenceURL)
+	if inferenceURL == "" {
+		inferenceURL = "http://127.0.0.1:8000"
 	}
+	inferenceClient := inferenceAdapter.New(inferenceURL)
 	logRepository := trafficlog.Repository{DB: app.db}
 	r.Use(func(c *gin.Context) {
 		subdomain := proxyAdapter.SubdomainFromHost(c.Request.Host)
@@ -176,6 +173,137 @@ func (app *application) mount() http.Handler {
 		group := api.Group(m.BasePath())
 
 		m.Register(group)
+	}
+
+	// ── Sentra security dashboard API routes ──
+	if inferenceClient != nil {
+		sentra := api.Group("/sentra")
+
+		// Proxy GET endpoints to inference service
+		proxyGET := func(inferPath string) gin.HandlerFunc {
+			return func(c *gin.Context) {
+				body, status, err := inferenceClient.ProxyGET(c.Request.Context(), inferPath)
+				if err != nil {
+					c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+					return
+				}
+				c.Data(status, "application/json", body)
+			}
+		}
+
+		// Proxy POST endpoints to inference service  
+		proxyPOST := func(inferPath string) gin.HandlerFunc {
+			return func(c *gin.Context) {
+				body, status, err := inferenceClient.ProxyPOST(c.Request.Context(), inferPath, c.Request.Body)
+				if err != nil {
+					c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+					return
+				}
+				c.Data(status, "application/json", body)
+			}
+		}
+
+		sentra.GET("/metrics", proxyGET("/v1/metrics"))
+		sentra.GET("/risk-cards", proxyGET("/v1/risk-cards"))
+		sentra.GET("/identities", proxyGET("/v1/identities"))
+		sentra.GET("/policies", proxyGET("/v1/policies"))
+		sentra.GET("/trust-scores", proxyGET("/v1/trust-scores"))
+		sentra.GET("/attack-sim/scenarios", proxyGET("/v1/attack-sim/scenarios"))
+
+		sentra.POST("/identities/:id/revoke", func(c *gin.Context) {
+			path := "/v1/identities/" + c.Param("id") + "/revoke"
+			body, status, err := inferenceClient.ProxyPOST(c.Request.Context(), path, nil)
+			if err != nil {
+				c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+				return
+			}
+			c.Data(status, "application/json", body)
+		})
+
+		sentra.POST("/identities/:id/restore", func(c *gin.Context) {
+			path := "/v1/identities/" + c.Param("id") + "/restore"
+			body, status, err := inferenceClient.ProxyPOST(c.Request.Context(), path, nil)
+			if err != nil {
+				c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+				return
+			}
+			c.Data(status, "application/json", body)
+		})
+
+		sentra.POST("/risk-cards/:id/investigate", func(c *gin.Context) {
+			path := "/v1/risk-cards/" + c.Param("id") + "/investigate"
+			body, status, err := inferenceClient.ProxyPOST(c.Request.Context(), path, c.Request.Body)
+			if err != nil {
+				c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+				return
+			}
+			c.Data(status, "application/json", body)
+		})
+
+		sentra.POST("/risk-cards/:id/policy-recommendation", func(c *gin.Context) {
+			path := "/v1/risk-cards/" + c.Param("id") + "/policy-recommendation"
+			body, status, err := inferenceClient.ProxyPOST(c.Request.Context(), path, c.Request.Body)
+			if err != nil {
+				c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+				return
+			}
+			c.Data(status, "application/json", body)
+		})
+
+		sentra.POST("/policy-recommendations/:id/approve", func(c *gin.Context) {
+			path := "/v1/policy-recommendations/" + c.Param("id") + "/approve"
+			body, status, err := inferenceClient.ProxyPOST(c.Request.Context(), path, c.Request.Body)
+			if err != nil {
+				c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+				return
+			}
+			c.Data(status, "application/json", body)
+		})
+
+		sentra.GET("/risk-cards/:id/report", func(c *gin.Context) {
+			path := "/v1/risk-cards/" + c.Param("id") + "/report"
+			body, status, err := inferenceClient.ProxyGET(c.Request.Context(), path)
+			if err != nil {
+				c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+				return
+			}
+			c.Data(status, "text/plain", body)
+		})
+
+		sentra.POST("/attack-sim/run", proxyPOST("/v1/attack-sim/run"))
+
+		// Traffic logs from database
+		sentra.GET("/logs", func(c *gin.Context) {
+			rows, err := app.db.QueryContext(c.Request.Context(),
+				`SELECT id, subdomain, source_ip, request_method, request_path, verdict, status, upstream_status, received_at, evaluated_at FROM "log" ORDER BY received_at DESC LIMIT 100`)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			defer rows.Close()
+			var logs []map[string]any
+			for rows.Next() {
+				var id, subdomain, method, path, logStatus string
+				var sourceIP, verdict sql.NullString
+				var upstreamStatus sql.NullInt64
+				var receivedAt time.Time
+				var evaluatedAt sql.NullTime
+				if err := rows.Scan(&id, &subdomain, &sourceIP, &method, &path, &verdict, &logStatus, &upstreamStatus, &receivedAt, &evaluatedAt); err != nil {
+					continue
+				}
+				entry := map[string]any{
+					"id": id, "subdomain": subdomain, "source_ip": sourceIP.String,
+					"method": method, "path": path, "verdict": verdict.String,
+					"status": logStatus, "upstream_status": upstreamStatus.Int64,
+					"received_at": receivedAt, "evaluated_at": evaluatedAt.Time,
+				}
+				logs = append(logs, entry)
+			}
+			if logs == nil {
+				logs = []map[string]any{}
+			}
+			c.JSON(http.StatusOK, logs)
+		})
 	}
 
 	return r

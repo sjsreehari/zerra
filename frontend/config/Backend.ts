@@ -1,24 +1,20 @@
-const isProduction = process.env.NEXT_PUBLIC_NODE_ENV === "development";
-
-const baseUrl = isProduction
-  ? `http://localhost:8080`
-  : " ";
+const SENTRA_API = process.env.NEXT_PUBLIC_SENTRA_URL || "http://localhost:8000";
 
 export const APIENDPOINT = {
-  SendOtp: `${baseUrl}/api/v1/auth/otp/send`,
-  VerifyOTP: `${baseUrl}/api/v1/auth/otp/verify`,
-  Validate: `${baseUrl}/api/v1/auth/validate`,
-  GetGuestInitialCred: `${baseUrl}/api/v1/guests/initial`,
-  ResendOTP: `${baseUrl}/api/v1/auth/otp/resend`,
-
-  GetActivities: `${baseUrl}/api/v1/adventures/activities`,
-  GetActivityDetails: (activityID: string) =>
-    `${baseUrl}/api/v1/adventures/activities/${activityID}`,
-
-  CreateBooking: (entityID: string) => `${baseUrl}/api/v1/bookings/${entityID}`,
-
-  ListAllBookings: `${baseUrl}/api/v1/bookings`,
-
-  GetTicketData: (bookingID: string) =>
-    `${baseUrl}/api/v1/bookings/${bookingID}/ticket`,
+  Health: `${SENTRA_API}/health`,
+  Evaluate: `${SENTRA_API}/v1/evaluate`,
+  Metrics: `${SENTRA_API}/v1/metrics`,
+  RiskCards: `${SENTRA_API}/v1/risk-cards`,
+  Identities: `${SENTRA_API}/v1/identities`,
+  TrustScores: `${SENTRA_API}/v1/trust-scores`,
+  Policies: `${SENTRA_API}/v1/policies`,
+  AttackSimScenarios: `${SENTRA_API}/v1/attack-sim/scenarios`,
+  AttackSimRun: `${SENTRA_API}/v1/attack-sim/run`,
+  InvestigateRiskCard: (id: string) => `${SENTRA_API}/v1/risk-cards/${id}/investigate`,
+  PolicyRecommendation: (id: string) => `${SENTRA_API}/v1/risk-cards/${id}/policy-recommendation`,
+  ApprovePolicy: (id: string) => `${SENTRA_API}/v1/policy-recommendations/${id}/approve`,
+  IncidentReport: (id: string) => `${SENTRA_API}/v1/risk-cards/${id}/report`,
+  RevokeIdentity: (id: string) => `${SENTRA_API}/v1/identities/${id}/revoke`,
+  RestoreIdentity: (id: string) => `${SENTRA_API}/v1/identities/${id}/restore`,
+  AttackReplay: `${SENTRA_API}/v1/attack-replay`,
 };
