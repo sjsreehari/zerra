@@ -6,11 +6,14 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	inferenceAdapter "github.com/sjsreehari/zerra/internal/adapters/inference"
+	authFeature "github.com/sjsreehari/zerra/internal/features/auth"
 	trafficlog "github.com/sjsreehari/zerra/internal/features/trafficlog"
 	scannerAdapter "github.com/sjsreehari/zerra/internal/adapters/scanner"
 	securityscanFeature "github.com/sjsreehari/zerra/internal/features/securityscan"
@@ -46,7 +49,7 @@ func (app *application) mount() http.Handler {
 
 	// MIDDLEWARE
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8000"},
+		AllowOrigins:     allowedOrigins(),
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
@@ -149,6 +152,15 @@ func (app *application) mount() http.Handler {
 	})
 
 	api := r.Group("/api/v1")
+	authService := authFeature.NewService(app.db, os.Getenv("JWT_SECRET"), jwtTTL(), os.Getenv("ENVIRONMENT") == "production")
+	authHandler := authFeature.NewHandler(authService)
+	api.POST("/auth/register", authHandler.Register)
+	api.POST("/auth/login", authHandler.Login)
+
+	protected := api.Group("")
+	protected.Use(authFeature.Require(authService))
+	protected.GET("/auth/me", authHandler.Me)
+	protected.POST("/auth/logout", authHandler.Logout)
 	// Targets are resolved only through the proxy table. The scanner runner has
 	// no client-controlled image, command, mount, headers, or target URL.
 	var runner securityscanFeature.Runner
@@ -162,7 +174,7 @@ func (app *application) mount() http.Handler {
 		securityscanFeature.PostgresRepository{DB: app.db}, scannerAdapter.NewTargetGuard(), runner,
 		securityscanFeature.DefaultLimits(), os.Getenv("SAFE_ACTIVE_SCANS_ENABLED") == "true",
 	)
-	securityscanFeature.Register(api.Group("/security-scans"), securityscanFeature.NewHandler(scanService))
+	securityscanFeature.Register(protected.Group("/security-scans"), securityscanFeature.NewHandler(scanService))
 
 	modules := []routers.RouterInterface{
 		containerModule.NewRouter(app.db),
@@ -170,14 +182,14 @@ func (app *application) mount() http.Handler {
 	}
 
 	for _, m := range modules {
-		group := api.Group(m.BasePath())
+		group := protected.Group(m.BasePath())
 
 		m.Register(group)
 	}
 
 	// ── Sentra security dashboard API routes ──
 	if inferenceClient != nil {
-		sentra := api.Group("/sentra")
+		sentra := protected.Group("/sentra")
 
 		// Proxy GET endpoints to inference service
 		proxyGET := func(inferPath string) gin.HandlerFunc {
@@ -308,6 +320,29 @@ func (app *application) mount() http.Handler {
 
 	return r
 
+}
+
+func allowedOrigins() []string {
+	raw := os.Getenv("CORS_ORIGINS")
+	if raw == "" {
+		return []string{"http://localhost:3000", "http://127.0.0.1:3000"}
+	}
+	parts := strings.Split(raw, ",")
+	origins := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if origin := strings.TrimSpace(part); origin != "" {
+			origins = append(origins, origin)
+		}
+	}
+	return origins
+}
+
+func jwtTTL() time.Duration {
+	hours, err := strconv.Atoi(os.Getenv("JWT_TTL_HOURS"))
+	if err != nil || hours <= 0 || hours > 24*30 {
+		hours = 24
+	}
+	return time.Duration(hours) * time.Hour
 }
 
 func (app *application) run(h http.Handler) error {

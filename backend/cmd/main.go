@@ -4,6 +4,7 @@ import (
 	// "fmt"
 	"log"
 	"os"
+	"time"
 
 	//"time"
 
@@ -25,10 +26,11 @@ func main() {
 	// APP BANNER
 	// banner.Banner()
 
-	err := godotenv.Load()
+	err := godotenv.Load("../.env", ".env")
 	if err != nil {
-		log.Println("Error loading .env")
+		log.Println("no local .env loaded; using process environment")
 	}
+	startTime = time.Now()
 
 	cfg := config{
 		addr: ":8080",
