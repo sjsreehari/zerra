@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"log"
 	"net/http"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	inferenceAdapter "github.com/sjsreehari/zerra/internal/adapters/inference"
+	trafficlog "github.com/sjsreehari/zerra/internal/features/trafficlog"
 	scannerAdapter "github.com/sjsreehari/zerra/internal/adapters/scanner"
 	securityscanFeature "github.com/sjsreehari/zerra/internal/features/securityscan"
 	proxyAdapter "github.com/sjsreehari/zerra/internal/adapters/proxy"
@@ -56,7 +58,7 @@ func (app *application) mount() http.Handler {
 	// host forwards every path, including paths such as / and /health.
 	proxyService := proxyModule.NewService(proxyModule.NewRepository(app.db))
 	inferenceURL := os.Getenv("SENTRA_INFERENCE_URL")
-	inferenceEnabled := os.Getenv("SENTRA_INFERENCE_ENABLED") == "true"
+	inferenceEnabled := os.Getenv("SENTRA_INFERENCE_ENABLED") != "false"
 	var inferenceClient *inferenceAdapter.Client
 	if inferenceEnabled {
 		if inferenceURL == "" {
@@ -64,6 +66,7 @@ func (app *application) mount() http.Handler {
 		}
 		inferenceClient = inferenceAdapter.New(inferenceURL)
 	}
+	logRepository := trafficlog.Repository{DB: app.db}
 	r.Use(func(c *gin.Context) {
 		subdomain := proxyAdapter.SubdomainFromHost(c.Request.Host)
 		if subdomain == "" {
@@ -83,26 +86,44 @@ func (app *application) mount() http.Handler {
 		}
 
 		if inferenceEnabled {
-			verdict, reason, err := inferenceClient.Evaluate(c.Request.Context(), c.Request)
+			event := inferenceClient.BuildEvent(c.Request, "")
+			eventJSON, _ := json.Marshal(event)
+			logID, logErr := logRepository.Create(c.Request.Context(), subdomain, c.ClientIP(), c.Request.Method, c.Request.URL.Path, c.Request.ContentLength, eventJSON)
+			if logErr != nil {
+				c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"error": "traffic log unavailable"})
+				return
+			}
+			event.ID = logID
+			eventJSON, _ = json.Marshal(event)
+			_ = logRepository.SetEvent(c.Request.Context(), logID, eventJSON)
+			decision, err := inferenceClient.Evaluate(c.Request.Context(), event)
 			if err != nil {
 				log.Printf("inference unavailable for %q: %v", subdomain, err)
+				_ = logRepository.Complete(c.Request.Context(), logID, nil, "block", http.StatusServiceUnavailable, err.Error())
 				c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"error": "security inference unavailable"})
 				return
 			}
-			if verdict != "allow" {
+			if decision.Verdict != "allow" {
 				status := http.StatusForbidden
-				if verdict == "step_up" {
+				if decision.Verdict == "step_up" {
 					status = http.StatusUnauthorized
 				}
-				c.AbortWithStatusJSON(status, gin.H{"verdict": verdict, "reason": reason})
+				_ = logRepository.Complete(c.Request.Context(), logID, decision.Raw, decision.Verdict, status, "")
+				c.AbortWithStatusJSON(status, gin.H{"verdict": decision.Verdict, "reason": decision.Reason, "log_id": logID})
 				return
 			}
+			c.Set("traffic_log_id", logID)
+			c.Set("agent_output", decision)
 		}
 
 		if err := proxyAdapter.Forward(c, route.ApiBaseUrl); err != nil {
 			log.Printf("invalid upstream for %q: %v", subdomain, err)
 			c.AbortWithStatusJSON(http.StatusBadGateway, gin.H{"error": "registered upstream API is invalid"})
 			return
+		}
+		if logID, ok := c.Get("traffic_log_id"); ok {
+			decision := c.MustGet("agent_output").(inferenceAdapter.Decision)
+			_ = logRepository.Complete(c.Request.Context(), logID.(string), decision.Raw, decision.Verdict, http.StatusOK, "")
 		}
 		c.Abort()
 	})

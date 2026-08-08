@@ -19,3 +19,8 @@ func (r Repository) Complete(ctx context.Context, id string, output json.RawMess
 	_, err := r.DB.ExecContext(ctx, `UPDATE "log" SET agent_output=$2, verdict=$3, upstream_status=$4, error_message=NULLIF($5, ''), status='evaluated', evaluated_at=$6 WHERE id=$1`, id, output, verdict, upstreamStatus, errText, time.Now().UTC())
 	return err
 }
+
+func (r Repository) SetEvent(ctx context.Context, id string, event json.RawMessage) error {
+	_, err := r.DB.ExecContext(ctx, `UPDATE "log" SET event_json=$2 WHERE id=$1`, id, event)
+	return err
+}
