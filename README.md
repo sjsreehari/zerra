@@ -1,6 +1,17 @@
 # Zerra / SENTRA Security Platform
 
-**Zerra** is the core repository for **SENTRA**: a Zero-Trust Authorization & Security Intelligence Proxy designed to protect APIs, microservices, AI agents, and Model Context Protocol (MCP) servers. 
+![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?style=for-the-badge&logo=go&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![Next.js](https://img.shields.io/badge/Next.js-15-000000?style=for-the-badge&logo=nextdotjs&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)
+![Ollama](https://img.shields.io/badge/Ollama-LLM-black?style=for-the-badge&logo=ollama&logoColor=white)
+![License](https://img.shields.io/badge/License-Proprietary-red?style=for-the-badge)
+
+Zerra is the core repository for SENTRA: a Zero-Trust Authorization & Security Intelligence Proxy designed to protect APIs, microservices, AI agents, and Model Context Protocol (MCP) servers.
 
 Unlike traditional static RBAC/ABAC or simple IP rate-limiters, SENTRA evaluates **identity, target object graph context, and temporal request sequences**—not just single isolated requests—to continuously adjust trust scores and enforce real-time access decisions (`ALLOW`, `STEP_UP`, or `BLOCK`).
 
