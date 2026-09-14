@@ -29,7 +29,7 @@ class ThreatHunter:
     def investigate(self, card: RiskCard) -> Investigation:
         evidence = {"risk_card": card.model_dump(mode="json"), "instruction": "Use only supplied evidence. Return concise JSON with severity, confidence, incident_summary, attack_hypothesis, owasp, mitre, recommended_actions."}
         try:
-            output = self.client.json("You are SENTRA's offline security analyst. Never invent facts or authorize actions.", evidence)
+            output = self.client.json("You are Zerra's offline security analyst. Never invent facts or authorize actions.", evidence)
             return Investigation(risk_card_id=card.id, severity=str(output.get("severity", "high")), confidence=float(output.get("confidence", card.confidence)), incident_summary=str(output.get("incident_summary", card.evidence)), attack_hypothesis=str(output.get("attack_hypothesis", card.owasp_tag)), owasp=list(output.get("owasp", [card.owasp_tag])), mitre=list(output.get("mitre", [card.mitre_tag])), recommended_actions=list(output.get("recommended_actions", self._actions(card))), source="ollama", created_at=datetime.now(timezone.utc))
         except OllamaUnavailable:
             return Investigation(risk_card_id=card.id, severity="critical" if card.verdict.value == "block" else "high", confidence=card.confidence, incident_summary=card.evidence, attack_hypothesis=f"Observed {card.owasp_tag} associated with {card.identity_id}.", owasp=[card.owasp_tag], mitre=[card.mitre_tag], recommended_actions=self._actions(card), source="deterministic-fallback", created_at=datetime.now(timezone.utc))

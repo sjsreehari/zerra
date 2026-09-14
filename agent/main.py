@@ -1,18 +1,18 @@
-"""Runnable local SENTRA demonstration and shared runtime factory."""
+"""Runnable local Zerra demonstration and shared runtime factory."""
 
 from agent.attack_sim import AttackSimulator, fast_invoice_enumeration, normal_repeating_user_traffic
 from agent.graph import IntentGraphStore
 from agent.identity import IdentityRegistry
-from agent.metrics import SentraMetrics
-from agent.orchestrator import SentraEngine
+from agent.metrics import ZerraMetrics
+from agent.orchestrator import ZerraEngine
 from agent.policy import PolicyEngine
 from agent.trust import TrustScoreStore
 
 
-def create_demo_engine() -> tuple[SentraEngine, SentraMetrics]:
-    """Build one isolated, in-memory SENTRA runtime for the demo or API server."""
-    metrics = SentraMetrics()
-    engine = SentraEngine(
+def create_demo_engine() -> tuple[ZerraEngine, ZerraMetrics]:
+    """Build one isolated, in-memory Zerra runtime for the demo or API server."""
+    metrics = ZerraMetrics()
+    engine = ZerraEngine(
         registry=IdentityRegistry(),
         graph_store=IntentGraphStore(),
         trust_store=TrustScoreStore(),

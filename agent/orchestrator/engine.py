@@ -12,7 +12,7 @@ from agent.sequential.models import CallEvent as SequenceCallEvent
 from agent.sequential.scorer_service import score as score_sequence
 from agent.trust import TrustScoreInputs, TrustScoreStore
 
-class SentraEngine:
+class ZerraEngine:
     def __init__(self, registry: IdentityRegistry, graph_store: IntentGraphStore, trust_store: TrustScoreStore,
                  policy_engine: PolicyEngine | None = None) -> None:
         self.registry = registry

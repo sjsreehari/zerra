@@ -4,7 +4,7 @@ from fastapi import FastAPI, HTTPException
 
 from agent.mock_data import MockDataStore
 
-app = FastAPI(title="SENTRA Protected Upstream")
+app = FastAPI(title="Zerra Protected Upstream")
 data = MockDataStore()
 
 
@@ -19,7 +19,7 @@ def invoice(invoice_id: str):
     if metadata is None:
         raise HTTPException(404, "invoice not found")
     # This service has no public port in Docker Compose. Authorization is enforced
-    # by the SENTRA Go gateway before this private upstream is reached.
+    # by the Zerra Go gateway before this private upstream is reached.
     return data._invoices[invoice_id]
 
 

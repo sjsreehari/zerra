@@ -20,7 +20,7 @@ class MetricsSnapshot(BaseModel):
     average_latency_ms: float
 
 
-class SentraMetrics:
+class ZerraMetrics:
     def __init__(self) -> None:
         self.reset()
 

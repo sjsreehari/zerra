@@ -1,3 +1,3 @@
-from .metrics import MetricsSnapshot, SentraMetrics
+from .metrics import MetricsSnapshot, ZerraMetrics
 
-__all__ = ["MetricsSnapshot", "SentraMetrics"]
+__all__ = ["MetricsSnapshot", "ZerraMetrics"]

@@ -3,14 +3,14 @@ from datetime import datetime, timedelta, timezone
 from agent.contracts import CallEvent, IdentityType, Verdict
 from agent.graph import IntentGraphStore
 from agent.identity import IdentityRegistry
-from agent.orchestrator import SentraEngine
+from agent.orchestrator import ZerraEngine
 from agent.sequential.scorer_service import reset_for_tests
 from agent.trust import TrustScoreStore
 
 
-def _engine() -> SentraEngine:
+def _engine() -> ZerraEngine:
     reset_for_tests()
-    return SentraEngine(IdentityRegistry(), IntentGraphStore(), TrustScoreStore())
+    return ZerraEngine(IdentityRegistry(), IntentGraphStore(), TrustScoreStore())
 
 
 def _event(call_id: str, identity_id: str, endpoint: str, object_id: str | None = None, **updates) -> CallEvent:

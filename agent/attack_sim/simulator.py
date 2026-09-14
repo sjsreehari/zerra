@@ -4,8 +4,8 @@ from time import perf_counter
 from pydantic import BaseModel
 
 from agent.contracts import CallEvent, DecisionResponse, Verdict
-from agent.metrics import SentraMetrics
-from agent.orchestrator import SentraEngine
+from agent.metrics import ZerraMetrics
+from agent.orchestrator import ZerraEngine
 
 
 class ScenarioType(str, Enum):
@@ -34,7 +34,7 @@ class ScenarioRunResult(BaseModel):
 
 
 class AttackSimulator:
-    def run(self, engine: SentraEngine, events: list[ScenarioEvent], metrics: SentraMetrics | None = None) -> ScenarioRunResult:
+    def run(self, engine: ZerraEngine, events: list[ScenarioEvent], metrics: ZerraMetrics | None = None) -> ScenarioRunResult:
         if not events:
             raise ValueError("A scenario needs at least one event")
         decisions: list[DecisionResponse] = []
