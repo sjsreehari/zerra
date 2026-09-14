@@ -121,6 +121,45 @@ def approve_policy(recommendation_id: str):
     return recommendation
 
 
+class CreatePolicyPayload(BaseModel):
+    id: str | None = None
+    name: str
+    description: str = ""
+    rule_type: str
+    parameters: dict[str, Any] = Field(default_factory=dict)
+    status: PolicyStatus = PolicyStatus.ACTIVE
+    version: int = 1
+
+
+@app.get("/v1/policies")
+def list_policies():
+    return [p.model_dump() for p in engine.policy_engine.list_policies()]
+
+
+@app.post("/v1/policies")
+def create_policy(payload: CreatePolicyPayload):
+    pol_id = payload.id or f"policy-{uuid4().hex[:8]}"
+    pol = Policy(
+        id=pol_id,
+        name=payload.name,
+        description=payload.description,
+        rule_type=payload.rule_type,
+        parameters=payload.parameters,
+        status=payload.status,
+        version=payload.version,
+    )
+    engine.policy_engine.add_policy(pol)
+    return pol.model_dump()
+
+
+@app.delete("/v1/policies/{policy_id}")
+def delete_policy(policy_id: str):
+    removed = engine.policy_engine.remove_policy(policy_id)
+    if not removed:
+        raise HTTPException(404, f"Policy '{policy_id}' not found")
+    return {"status": "deleted", "policy_id": policy_id}
+
+
 @app.get("/v1/risk-cards/{risk_card_id}/report", response_class=PlainTextResponse)
 def incident_report(risk_card_id: str):
     card = next((item for item in risk_cards if item.id == risk_card_id), None)
@@ -519,5 +558,61 @@ def export_audit_log(job_id: str):
         findings=orchestrator.tools.findings_ledger,
         coverage=orchestrator.tools.coverage_ledger,
     )
+
+
+@app.get("/v1/pentest/jobs")
+def list_pentest_jobs():
+    """List all autonomous pentest runs and current state."""
+    results = []
+    for j_id, orch in pentest_orchestrators.items():
+        results.append({
+            "job_id": j_id,
+            "target_url": orch.target_url,
+            "status": "completed" if orch.summary else "running",
+            "findings_count": len(orch.tools.findings_ledger),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+    return results
+
+
+@app.get("/v1/pentest/latest/export/sarif")
+def export_latest_sarif():
+    """Export latest findings in SARIF 2.1.0 format."""
+    if not pentest_orchestrators:
+        return generate_sarif_report(job_id="system-latest", target_url="https://api.zerra.internal", findings=[])
+    latest_id = list(pentest_orchestrators.keys())[-1]
+    return export_sarif(latest_id)
+
+
+@app.get("/v1/pentest/latest/export/report", response_class=PlainTextResponse)
+def export_latest_report():
+    """Export latest executive compliance report in Markdown format."""
+    if not pentest_orchestrators:
+        return PlainTextResponse(
+            generate_executive_report_markdown(
+                summary={"target_url": "https://api.zerra.internal", "duration_seconds": 0},
+                findings=[],
+                coverage={"endpoints_tested": 0, "parameters_fuzzed": 0, "payloads_evaluated": 0},
+            ),
+            media_type="text/markdown",
+        )
+    latest_id = list(pentest_orchestrators.keys())[-1]
+    return export_executive_report(latest_id)
+
+
+@app.get("/v1/pentest/latest/export/audit")
+def export_latest_audit():
+    """Export latest tamper-evident JSON audit trail."""
+    if not pentest_orchestrators:
+        return generate_json_audit_log(
+            job_id="system-latest",
+            target_url="https://api.zerra.internal",
+            summary={"target_url": "https://api.zerra.internal", "duration_seconds": 0},
+            findings=[],
+            coverage={},
+        )
+    latest_id = list(pentest_orchestrators.keys())[-1]
+    return export_audit_log(latest_id)
+
 
 
