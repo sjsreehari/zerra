@@ -1,4 +1,4 @@
-# SENTRA Intent Graph Engine
+# Zerra Intent Graph Engine
 
 An in-memory, explainable multi-relation graph for detecting API reconnaissance and BOLA-style enumeration. It deliberately scores **relationships over time**, not isolated requests.
 

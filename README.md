@@ -1,4 +1,4 @@
-# Zerra / SENTRA Security Platform
+# Zerra Security Platform
 
 ![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?style=for-the-badge&logo=go&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)
@@ -11,15 +11,15 @@
 ![Ollama](https://img.shields.io/badge/Ollama-LLM-black?style=for-the-badge&logo=ollama&logoColor=white)
 ![License](https://img.shields.io/badge/License-Proprietary-red?style=for-the-badge)
 
-Zerra is the core repository for SENTRA: a Zero-Trust Authorization & Security Intelligence Proxy designed to protect APIs, microservices, AI agents, and Model Context Protocol (MCP) servers.
+Zerra is an Autonomous Zero-Trust Authorization & Security Intelligence Platform designed to protect APIs, microservices, AI agents, and Model Context Protocol (MCP) servers.
 
-Unlike traditional static RBAC/ABAC or simple IP rate-limiters, SENTRA evaluates **identity, target object graph context, and temporal request sequences**—not just single isolated requests—to continuously adjust trust scores and enforce real-time access decisions (`ALLOW`, `STEP_UP`, or `BLOCK`).
+Unlike traditional static RBAC/ABAC or simple IP rate-limiters, Zerra evaluates **identity, target object graph context, and temporal request sequences**—not just single isolated requests—to continuously adjust trust scores and enforce real-time access decisions (`ALLOW`, `STEP_UP`, or `BLOCK`).
 
 ---
 
 ## 🏗️ Architecture & Technical Flow
 
-SENTRA operates as an inline security enforcement proxy positioned between external clients (humans, microservices, AI agents) and upstream protected services, paired with an out-of-band management console and security intelligence engine.
+Zerra operates as an inline security enforcement proxy positioned between external clients (humans, microservices, AI agents) and upstream protected services, paired with an out-of-band management console and security intelligence engine.
 
 ### High-Level System Architecture
 
@@ -44,7 +44,7 @@ SENTRA operates as an inline security enforcement proxy positioned between exter
                                   │                            │
                                   ▼                            ▼
 ┌──────────────────────────────────────────────────┐ ┌───────────────────────────┐
-│     SENTRA Intelligence Layer (Python Agent)     │ │ Private Upstream Service  │
+│      Zerra Intelligence Layer (Python Agent)     │ │ Private Upstream Service  │
 │      (agent/ - Port 8000 - FastAPI + Pydantic)   │ │ (agent.upstream_api:app)  │
 │                                                  │ │ • Port 8001 (Internal)   │
 │  ┌────────────────────────────────────────────┐  │ │ • Multi-Tenant Sensitive  │
@@ -106,7 +106,7 @@ SENTRA operates as an inline security enforcement proxy positioned between exter
    - It extracts the `qroasis` subdomain and queries the PostgreSQL database (`proxy` table) to find the target `api_base_url` (e.g. `http://upstream:8001`).
 
 2. **Synchronous Security Inference Call**:
-   - If `SENTRA_INFERENCE_ENABLED=true`, the gateway sends a synchronous `POST /v1/evaluate` payload to the Python SENTRA inference engine (`:8000`).
+   - If `ZERRA_INFERENCE_ENABLED=true` (or `SENTRA_INFERENCE_ENABLED=true`), the gateway sends a synchronous `POST /v1/evaluate` payload to the Python Zerra inference engine (`:8000`).
    - The payload contains the normalized `CallEvent`: timestamp, bearer token/identity ID, identity type (`human`, `agent`, `mcp_server`), target object ID, endpoint path, HTTP method, and tenant ID.
 
 3. **Triple-Engine Threat Evaluation Pipeline**:
@@ -119,7 +119,7 @@ SENTRA operates as an inline security enforcement proxy positioned between exter
      - `ALLOW` (Trust Score $\ge 70$, no hard rule violations)
      - `STEP_UP` ($40 \le$ Trust Score $< 70$, requires step-up authentication or elevated scope)
      - `BLOCK` (Trust Score $< 40$, cross-tenant access, or explicit policy violation)
-   - For `BLOCK` or `STEP_UP` verdicts, SENTRA constructs a structured **Risk Card** containing evidence, graph metrics, sequence triggering indexes, and policy tags.
+   - For `BLOCK` or `STEP_UP` verdicts, Zerra constructs a structured **Risk Card** containing evidence, graph metrics, sequence triggering indexes, and policy tags.
 
 5. **Upstream Proxy Execution or Block**:
    - **Allowed**: The Go Gateway proxies the request to the upstream target URL, correctly setting host headers, passing request bodies, and rewriting absolute upstream redirect locations back to the gateway domain.
@@ -225,17 +225,18 @@ POSTGRES_PASSWORD=sentra-local-only
 DB_CONN_STR=postgres://sentra:sentra-local-only@postgres:5432/sentra?sslmode=disable
 ENVIRONMENT=development
 BASE_DOMAIN=127.0.0.1
-SENTRA_INFERENCE_URL=http://inference:8000
-SENTRA_INFERENCE_ENABLED=true
+ZERRA_INFERENCE_URL=http://inference:8000
+ZERRA_INFERENCE_ENABLED=true
 CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
 NEXT_PUBLIC_API_URL=http://localhost:8080
+NEXT_PUBLIC_ZERRA_URL=http://localhost:8000
 ```
 
 ---
 
 ### Option A: Complete Docker Compose Stack (Recommended)
 
-Launch the entire SENTRA stack with PostgreSQL, Python inference, private upstream, Go gateway, Nginx, and Next.js frontend console:
+Launch the entire Zerra stack with PostgreSQL, Python inference, private upstream, Go gateway, Nginx, and Next.js frontend console:
 
 ```powershell
 docker compose --profile frontend up --build -d
@@ -246,7 +247,7 @@ Check running services:
 | Service | Host Port | Description |
 | :--- | :--- | :--- |
 | **Go Gateway** | `http://localhost:8080` | Dynamic Reverse Proxy & Auth API |
-| **Inference API** | `http://localhost:8000` | Python SENTRA Security Intelligence API |
+| **Inference API** | `http://localhost:8000` | Python Zerra Security Intelligence API |
 | **Security Console** | `http://localhost:3000` | Next.js Dashboard UI |
 | **Edge Nginx** | `http://localhost:80` | Optional Edge Web Proxy |
 | **Upstream API** | Internal (`8001`) | Isolated Private Mock Service |
@@ -278,8 +279,8 @@ Ensure PostgreSQL is running and migrations are applied, then:
 ```powershell
 # In terminal 2
 $env:DB_CONN_STR="postgres://sentra:sentra-local-only@127.0.0.1:5432/sentra?sslmode=disable"
-$env:SENTRA_INFERENCE_ENABLED="true"
-$env:SENTRA_INFERENCE_URL="http://127.0.0.1:8000"
+$env:ZERRA_INFERENCE_ENABLED="true"
+$env:ZERRA_INFERENCE_URL="http://127.0.0.1:8000"
 cd backend
 go run ./cmd
 ```
@@ -394,7 +395,7 @@ curl --resolve qroasis.127.0.0.1:8080:127.0.0.1 \
 
 ## 🛡️ Target Scope & Security Guarantees
 
-SENTRA is specifically engineered for modern API, microservice, and AI/MCP workloads:
+Zerra is specifically engineered for modern API, microservice, and AI/MCP workloads:
 - **Zero-Trust for AI Agents & MCP**: Evaluates scope contracts to ensure autonomous agents do not exceed authorized API boundaries or perform out-of-sequence actions.
 - **Continuous Trust Scoring**: Replaces static binary permissions with continuous 0–100 risk scoring.
 - **Upstream Shielding**: Upstream backend microservices remain on isolated private networks; unauthorized or malicious traffic is blocked at the gateway, shielding upstream infrastructure from load and zero-day exploitation.
@@ -403,4 +404,4 @@ SENTRA is specifically engineered for modern API, microservice, and AI/MCP workl
 
 ## 📄 License
 
-This repository is proprietary software developed for the SENTRA zero-trust authorization prototype.
+This repository is proprietary software developed for the Zerra zero-trust authorization platform.

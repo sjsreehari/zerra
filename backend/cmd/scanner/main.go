@@ -1,4 +1,4 @@
-// sentra-api-security-runner performs bounded checks against an already
+// zerra-api-security-runner performs bounded checks against an already
 // authorized target. It never accepts a command, credentials, or arbitrary URL.
 package main
 

@@ -1,4 +1,4 @@
-# SENTRA Trust Score
+# Zerra Trust Score
 
 This package produces an explainable, live 0–100 trust score for each identity. It blends graph risk, sequence risk, authentication weakness, and sensitive-data exposure, then applies an asymmetric EWMA: bad evidence lowers trust quickly while recovery requires sustained good behavior.
 
