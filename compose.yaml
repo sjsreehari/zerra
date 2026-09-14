@@ -40,8 +40,8 @@ services:
       dockerfile: Dockerfile
     environment:
       DB_CONN_STR: ${DB_CONN_STR}
-      SENTRA_INFERENCE_URL: ${SENTRA_INFERENCE_URL}
-      SENTRA_INFERENCE_ENABLED: ${SENTRA_INFERENCE_ENABLED}
+      ZERRA_INFERENCE_URL: ${ZERRA_INFERENCE_URL:-${SENTRA_INFERENCE_URL}}
+      ZERRA_INFERENCE_ENABLED: ${ZERRA_INFERENCE_ENABLED:-${SENTRA_INFERENCE_ENABLED}}
       BASE_DOMAIN: ${BASE_DOMAIN}
       ENVIRONMENT: ${ENVIRONMENT}
       JWT_SECRET: ${JWT_SECRET}
@@ -67,7 +67,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_SENTRA_URL: http://127.0.0.1:8000
+        NEXT_PUBLIC_ZERRA_URL: http://127.0.0.1:8000
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
     ports: ["3000:3000"]
     depends_on:
