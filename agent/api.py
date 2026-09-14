@@ -10,7 +10,8 @@ from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse, StreamingResponse
 
-from agent.contracts import CallEvent, DecisionResponse, IdentityType, Policy, PolicyStatus
+from agent.contracts import CallEvent, DecisionResponse, Identity, IdentityType, Policy, PolicyStatus
+from agent.policy.models import PolicyAction
 from agent.agents import ThreatHunter
 from agent.attack_sim import AttackSimulator, fast_invoice_enumeration, normal_repeating_user_traffic
 from agent.main import create_demo_engine
@@ -364,11 +365,13 @@ def apply_virtual_patch(job_id: str, patch_id: str):
         id=f"vp-{patch.id[:8]}",
         name=f"Virtual Patch: {patch.rule_name}",
         description=patch.description,
-        rule_type="agent_scope_contract" if "BOLA" in patch.rule_name else "cross_tenant_access",
+        rule_type="virtual_patch",
         parameters={
             "target_pattern": patch.target_endpoint_pattern,
+            "target_method": patch.target_method,
             "action": patch.action.lower(),
             "applied_from_pentest_job": job_id,
+            "policy_condition": patch.policy_condition,
         },
         version=1,
         status=PolicyStatus.ACTIVE,
@@ -384,6 +387,73 @@ def apply_virtual_patch(job_id: str, patch_id: str):
         "rule_name": new_policy.name,
         "gateway_verdict_enforced": patch.action,
         "applied_at": patch.applied_at.isoformat(),
+    }
+
+
+@app.post("/v1/pentest/{job_id}/verify-patch")
+def verify_virtual_patch(job_id: str, patch_id: str):
+    """Execute live exploit neutralization verification against the gateway policy engine."""
+    orchestrator = pentest_orchestrators.get(job_id)
+    if not orchestrator:
+        raise HTTPException(404, "Pentest job not found")
+
+    target_finding = None
+    for f in orchestrator.tools.findings_ledger:
+        if f.virtual_patch and f.virtual_patch.id == patch_id:
+            target_finding = f
+            break
+
+    if not target_finding or not target_finding.virtual_patch:
+        raise HTTPException(404, "Virtual patch not found")
+
+    patch = target_finding.virtual_patch
+    poc = target_finding.poc
+
+    # Simulate PoC exploit call against the policy engine
+    exploit_call = CallEvent(
+        id=f"call-poc-{uuid4().hex[:8]}",
+        identity_id="adversary-poc-runner",
+        identity_type=IdentityType.AGENT,
+        timestamp=datetime.now(timezone.utc),
+        endpoint=target_finding.endpoint,
+        method=target_finding.method,
+        tenant_id="attacker-tenant",
+        home_tenant_id="attacker-tenant",
+    )
+    adversary_identity = Identity(
+        id="adversary-poc-runner",
+        type=IdentityType.AGENT,
+        tenant_id="attacker-tenant",
+        auth_strength=0.8,
+        scope_contract=[],
+        trust_score=80.0,
+    )
+
+    evaluations = engine.policy_engine.evaluate(
+        event=exploit_call,
+        identity=adversary_identity,
+        trust_score=80.0,
+        graph_result=None,
+    )
+    verdict = engine.policy_engine.final_action(evaluations)
+    is_blocked = (verdict in {PolicyAction.BLOCK, PolicyAction.STEP_UP})
+
+    status_before = poc.http_status_code or 200
+    status_after = 403 if verdict == PolicyAction.BLOCK else 401 if verdict == PolicyAction.STEP_UP else 200
+
+    return {
+        "job_id": job_id,
+        "finding_id": target_finding.id,
+        "patch_id": patch.id,
+        "rule_name": patch.rule_name,
+        "patch_status": patch.status,
+        "exploit_status_before_patch": status_before,
+        "exploit_status_after_patch": status_after,
+        "verdict": verdict.value,
+        "mitigated_inline": is_blocked,
+        "matched_rules": [e.policy_name for e in evaluations if e.matched],
+        "message": "Exploit neutralized inline by Zero-Trust Virtual Patch" if is_blocked else "Exploit active (patch not yet applied)",
+        "verified_at": datetime.now(timezone.utc).isoformat(),
     }
 
 
