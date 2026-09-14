@@ -70,6 +70,9 @@ export default function Topbar() {
           <span className="font-semibold text-text-primary">100% Validated</span>
         </div>
 
+        {/* Notifications Popover */}
+        <NotificationPopover />
+
         {/* Quick Launch Pentest Button */}
         <Link
           href="/dashboard/security"
@@ -80,5 +83,89 @@ export default function Topbar() {
         </Link>
       </div>
     </header>
+  );
+}
+
+function NotificationPopover() {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const notifications = [
+    {
+      id: 1,
+      title: "Zero-Trust Enforcement Active",
+      desc: "All incoming requests evaluated through triple-engine risk graph.",
+      time: "Just now",
+      type: "success",
+    },
+    {
+      id: 2,
+      title: "Real-time Attack Hunter Ready",
+      desc: "Llama 3.2 threat model loaded and standing by for incident triage.",
+      time: "3m ago",
+      type: "info",
+    },
+    {
+      id: 3,
+      title: "Automated Sandbox Active",
+      desc: "Docker container sandboxes provisioned with strict resource limits.",
+      time: "12m ago",
+      type: "warning",
+    },
+  ];
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="relative p-2 rounded-lg text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors"
+        title="Security Notifications"
+      >
+        <Bell size={16} />
+        <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-blue-500 ring-2 ring-bg-surface" />
+      </button>
+
+      {isOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setIsOpen(false)}
+          />
+          <div className="absolute right-0 mt-2 w-80 rounded-xl bg-bg-surface border border-border-default shadow-xl z-50 p-3 animate-in fade-in zoom-in-95 duration-100">
+            <div className="flex items-center justify-between pb-2 border-b border-border-default mb-2">
+              <div className="flex items-center gap-2">
+                <Bell size={13} className="text-blue-400" />
+                <span className="text-xs font-semibold text-text-primary">System Notifications</span>
+              </div>
+              <span className="text-[10px] text-text-muted">3 unread</span>
+            </div>
+
+            <div className="space-y-2">
+              {notifications.map((n) => (
+                <div
+                  key={n.id}
+                  className="p-2 rounded-lg bg-bg-surface-sunken/60 hover:bg-bg-surface-sunken border border-border-default/50 transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-text-primary">{n.title}</span>
+                    <span className="text-[10px] text-text-muted">{n.time}</span>
+                  </div>
+                  <p className="text-[11px] text-text-secondary mt-0.5 leading-relaxed">{n.desc}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-3 pt-2 border-t border-border-default text-center">
+              <Link
+                href="/dashboard/threats"
+                onClick={() => setIsOpen(false)}
+                className="text-[11px] text-blue-400 hover:text-blue-300 font-medium"
+              >
+                View full threat incident log →
+              </Link>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
