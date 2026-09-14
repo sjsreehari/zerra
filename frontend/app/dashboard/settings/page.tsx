@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 
 export default function SettingsPage() {
-  const [sentraUrl, setSentraUrl] = useState("http://localhost:8000");
+  const [zerraUrl, setZerraUrl] = useState("http://localhost:8000");
   const [gatewayUrl, setGatewayUrl] = useState("http://localhost:8080");
   const [requestBudget, setRequestBudget] = useState(60);
   const [rateLimit, setRateLimit] = useState(10);
@@ -61,12 +61,12 @@ export default function SettingsPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
             <div>
               <label className="block text-text-secondary font-medium mb-1">
-                Zero-Trust Engine URL (Sentra API)
+                Zero-Trust Engine URL (Zerra API)
               </label>
               <input
                 type="text"
-                value={sentraUrl}
-                onChange={(e) => setSentraUrl(e.target.value)}
+                value={zerraUrl}
+                onChange={(e) => setZerraUrl(e.target.value)}
                 className="w-full bg-bg-surface-sunken border border-border-default rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:border-border-focus font-mono"
               />
             </div>
