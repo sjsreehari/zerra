@@ -6,7 +6,7 @@ import (
 )
 
 type Mode string
-const ( Passive Mode = "passive"; SafeActive Mode = "safe_active" )
+const ( Passive Mode = "passive"; SafeActive Mode = "safe_active"; AutonomousPentest Mode = "autonomous_pentest" )
 type JobStatus string
 const ( Queued JobStatus = "queued"; Running JobStatus = "running"; Completed JobStatus = "completed"; Failed JobStatus = "failed" )
 type FindingStatus string
@@ -15,7 +15,7 @@ type Severity string
 const ( Info Severity = "info"; Low Severity = "low"; Medium Severity = "medium"; High Severity = "high"; Critical Severity = "critical" )
 
 type Job struct { ID, Subdomain, TargetURL string; Status JobStatus; Mode Mode; RequestedAt time.Time; StartedAt, CompletedAt *time.Time; TotalChecks, PassedChecks, FailedChecks, WarningChecks, NotTestableChecks int; ErrorMessage *string }
-type Finding struct { ID string `json:"id,omitempty"`; JobID string `json:"job_id,omitempty"`; OWASPID string `json:"owasp_id"`; Title string `json:"title"`; Severity Severity `json:"severity"`; Status FindingStatus `json:"status"`; Endpoint *string `json:"endpoint,omitempty"`; Method *string `json:"method,omitempty"`; Evidence map[string]any `json:"evidence"`; Remediation string `json:"remediation"`; CreatedAt time.Time `json:"created_at,omitempty"`; Assessment string `json:"assessment,omitempty"` }
+type Finding struct { ID string `json:"id,omitempty"`; JobID string `json:"job_id,omitempty"`; OWASPID string `json:"owasp_id"`; Title string `json:"title"`; Severity Severity `json:"severity"`; Status FindingStatus `json:"status"`; Endpoint *string `json:"endpoint,omitempty"`; Method *string `json:"method,omitempty"`; Evidence map[string]any `json:"evidence"`; Remediation string `json:"remediation"`; CreatedAt time.Time `json:"created_at,omitempty"`; Assessment string `json:"assessment,omitempty"`; PoC *string `json:"poc,omitempty"`; VirtualPatch map[string]any `json:"virtual_patch,omitempty"` }
 type CreateRequest struct { Subdomain string `json:"subdomain" binding:"required"`; Mode Mode `json:"mode"` }
 type ScanPlan struct { JobID string `json:"job_id"`; TargetURL string `json:"target_url"`; Mode Mode `json:"mode"`; AllowedMethods []string `json:"allowed_methods"`; RequestBudget int `json:"request_budget"`; RateLimitPerSecond int `json:"rate_limit_per_second"`; KnownTestEndpoints []string `json:"known_test_endpoints"`; OpenAPIURL *string `json:"openapi_url"` }
 type ScanReport struct { Findings []Finding `json:"findings"`; RequestsUsed int `json:"requests_used"`; DurationMillis int64 `json:"duration_millis"` }
