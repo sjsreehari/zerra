@@ -147,6 +147,11 @@ zerra/
 │   ├── metrics/                   # Live risk, latency, and verdict telemetry collector
 │   ├── mock_data/                 # Multi-tenant sample datastore for demo endpoints
 │   ├── orchestrator/              # Master evaluation orchestrator (Graph ➔ Sequence ➔ Trust)
+│   ├── pentest/                   # Autonomous AI Pentesting & Continuous Validation Engine
+│   │   ├── agent_types.py         # Pydantic models for scans, findings, PoCs, and virtual patches
+│   │   ├── orchestrator.py        # Multi-agent coordinator (Root, Recon, Exploit, Defense)
+│   │   ├── skills_registry.py     # Domain-specific security playbooks (BOLA, BFLA, Auth, MCP)
+│   │   └── tools.py               # Toolsuite (HttpProbe, PoC validator, Virtual patch generator)
 │   ├── policy/                    # Deterministic policy engine and rule evaluator
 │   ├── policy_recommendations/    # Dynamic policy proposal engine based on Risk Cards
 │   ├── reports/                   # Markdown incident report generator
