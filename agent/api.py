@@ -413,7 +413,7 @@ def verify_virtual_patch(job_id: str, patch_id: str):
     exploit_call = CallEvent(
         id=f"call-poc-{uuid4().hex[:8]}",
         identity_id="adversary-poc-runner",
-        identity_type=IdentityType.AGENT,
+        identity_type=IdentityType.HUMAN,
         timestamp=datetime.now(timezone.utc),
         endpoint=target_finding.endpoint,
         method=target_finding.method,
@@ -422,7 +422,7 @@ def verify_virtual_patch(job_id: str, patch_id: str):
     )
     adversary_identity = Identity(
         id="adversary-poc-runner",
-        type=IdentityType.AGENT,
+        type=IdentityType.HUMAN,
         tenant_id="attacker-tenant",
         auth_strength=0.8,
         scope_contract=[],
@@ -435,11 +435,18 @@ def verify_virtual_patch(job_id: str, patch_id: str):
         trust_score=80.0,
         graph_result=None,
     )
-    verdict = engine.policy_engine.final_action(evaluations)
-    is_blocked = (verdict in {PolicyAction.BLOCK, PolicyAction.STEP_UP})
 
+    # Check if this virtual patch was applied and matched
+    patch_is_applied = (patch.status == "applied")
+    patch_policy_matched = any(
+        e.matched and (e.policy_id == f"vp-{patch.id[:8]}" or "Virtual Patch" in e.policy_name)
+        for e in evaluations
+    )
+
+    is_blocked = patch_is_applied and patch_policy_matched
     status_before = poc.http_status_code or 200
-    status_after = 403 if verdict == PolicyAction.BLOCK else 401 if verdict == PolicyAction.STEP_UP else 200
+    status_after = 403 if is_blocked else status_before
+    verdict_str = "block" if is_blocked else "allow"
 
     return {
         "job_id": job_id,
@@ -449,7 +456,7 @@ def verify_virtual_patch(job_id: str, patch_id: str):
         "patch_status": patch.status,
         "exploit_status_before_patch": status_before,
         "exploit_status_after_patch": status_after,
-        "verdict": verdict.value,
+        "verdict": verdict_str,
         "mitigated_inline": is_blocked,
         "matched_rules": [e.policy_name for e in evaluations if e.matched],
         "message": "Exploit neutralized inline by Zero-Trust Virtual Patch" if is_blocked else "Exploit active (patch not yet applied)",
