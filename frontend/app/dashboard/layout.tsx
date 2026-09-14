@@ -13,7 +13,6 @@ import {
 } from "lucide-react";
 
 import AnnouncementBar from "../components/shared/AnnouncementBar";
-import MenuBar from "../components/shared/MenuBar";
 import Sidebar from "../components/shared/Sidebar";
 import Topbar from "../components/shared/Topbar";
 
@@ -94,7 +93,6 @@ export default function DashboardLayout({
 
   return (
     <section className="flex h-screen overflow-hidden bg-bg-page">
-      <MenuBar />
       <Sidebar
         tabs={TABS}
       />

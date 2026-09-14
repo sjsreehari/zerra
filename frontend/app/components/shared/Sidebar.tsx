@@ -26,17 +26,25 @@ export default function Sidebar({ tabs } : SidebarProps) {
         )
     }
 
-    const isActive = (href: string) => pathname === href || pathname?.startsWith(`${href}/`)
+    const isActive = (href: string) => {
+        if (href === "/dashboard") {
+            return pathname === "/dashboard";
+        }
+        return pathname === href || pathname?.startsWith(`${href}/`);
+    };
 
     return (
         <aside className="w-60 h-screen flex flex-col border-r border-r-border-default pt-3.75">
 
             <div className="org__logo pb-4">
                 <div className="flex gap-2 items-center px-4">
-                    <div className="bg-bg-active w-8 h-8 flex items-center justify-center rounded-md">
+                    <div className="bg-gradient-to-br from-blue-600 to-indigo-600 text-white font-bold w-8 h-8 flex items-center justify-center rounded-lg shadow-sm">
                         Z
                     </div>
-                    <h3 className="font-bold text-xl">Zerra</h3>
+                    <div>
+                        <h3 className="font-bold text-lg tracking-tight">Zerra</h3>
+                        <span className="text-[10px] text-emerald-400 font-mono">● LIVE GATEWAY</span>
+                    </div>
                 </div>
                 <div className="border-b border-b-border-default pb-4"/>
             </div>
@@ -54,18 +62,18 @@ export default function Sidebar({ tabs } : SidebarProps) {
 
                                 const tabContent = (
                                     <div className="flex items-center justify-center gap-2 pl-2">
-                                        <tab.icon size={15} />
-                                        {tab.tab_name} 
+                                        <tab.icon size={15} className={tabIsActive ? "text-blue-400" : "text-text-muted"} />
+                                        <span className="truncate">{tab.tab_name}</span>
                                     </div>
                                 )
 
                                 const tabClassName = `
-                                    cursor-pointer w-full text-sm
-                                    flex items-center justify-between p-1 rounded-sm 
-                                    transition-colors 
+                                    cursor-pointer w-full text-xs font-medium
+                                    flex items-center justify-between px-2.5 py-2 rounded-lg 
+                                    transition-all 
                                     ${
-                                        openSubtabs.includes(tab.id) || tabIsActive
-                                        ? "border border-border-default bg-bg-active/10" 
+                                        tabIsActive
+                                        ? "bg-blue-500/10 text-blue-400 border border-blue-500/20 shadow-xs" 
                                         : "text-text-secondary hover:bg-bg-hover hover:text-text-primary"
                                     }
                                 `
@@ -208,18 +216,19 @@ export default function Sidebar({ tabs } : SidebarProps) {
 
 
             <div className="mt-auto border-t border-border-default p-3 shrink-0">
-                <div className="flex items-center gap-2">
-                    <Avatar
-                        image_url="/template.webp"
-                        size={60}
-                        alt="avatar"
-                    />
+                <div className="flex items-center gap-2.5 px-1 py-0.5">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-xs">
+                        OP
+                    </div>
 
                     <div className="flex-1 min-w-0">
-                        <h3 className="text-sm font-medium">Aromal</h3>
+                        <div className="flex items-center gap-1.5">
+                            <h3 className="text-xs font-semibold text-text-primary">SecOps Admin</h3>
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        </div>
 
-                        <p className="text-xs text-text-secondary truncate">
-                            developeraromal@gmail.com
+                        <p className="text-[10px] text-text-muted truncate">
+                            admin@zerra.network
                         </p>
                     </div>
                 </div>
