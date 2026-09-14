@@ -94,6 +94,7 @@ func Forward(c *gin.Context, apiBaseURL string) error {
 		// would send the browser away from the proxy. Keep it only as a private
 		// diagnostic header for an upstream that explicitly needs it.
 		request.Header.Del("X-Forwarded-Host")
+		request.Header.Set("X-Zerra-Original-Host", originalHost)
 		request.Header.Set("X-Sentra-Original-Host", originalHost)
 	}
 	// Some upstream applications respond with an absolute redirect to their own
