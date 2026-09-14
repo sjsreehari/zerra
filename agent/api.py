@@ -6,6 +6,8 @@ from uuid import uuid4
 import time
 import asyncio
 import json
+from typing import Any
+from pydantic import BaseModel, Field
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse, StreamingResponse
@@ -28,9 +30,19 @@ from agent.pentest import (
 )
 
 app = FastAPI(title="Zerra Inference API", version="0.1.0")
-app.add_middleware(CORSMiddleware, 
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8080", "http://127.0.0.1:8080"],
-    allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8080",
+        "http://127.0.0.1:8080",
+    ],
+    allow_origin_regex=r"https://.*\.vercel\.app|http://localhost:\d+|http://127\.0\.0\.1:\d+",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 engine, metrics = create_demo_engine()
 data = MockDataStore()
 risk_cards = []
