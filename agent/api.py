@@ -17,7 +17,14 @@ from agent.main import create_demo_engine
 from agent.mock_data import AccessDeniedError, MockDataStore
 from agent.policy_recommendations import PolicyRecommendationService
 from agent.reports import render_markdown
-from agent.pentest import PentestOrchestrator, PentestScanConfig, SkillsRegistry
+from agent.pentest import (
+    PentestOrchestrator,
+    PentestScanConfig,
+    SkillsRegistry,
+    generate_executive_report_markdown,
+    generate_json_audit_log,
+    generate_sarif_report,
+)
 
 app = FastAPI(title="SENTRA Inference API", version="0.1.0")
 app.add_middleware(CORSMiddleware, 
@@ -378,4 +385,50 @@ def apply_virtual_patch(job_id: str, patch_id: str):
         "gateway_verdict_enforced": patch.action,
         "applied_at": patch.applied_at.isoformat(),
     }
+
+
+@app.get("/v1/pentest/{job_id}/export/sarif")
+def export_sarif(job_id: str):
+    """Export validated pentest findings in OASIS SARIF 2.1.0 format."""
+    orchestrator = pentest_orchestrators.get(job_id)
+    if not orchestrator:
+        raise HTTPException(404, "Pentest job not found")
+    return generate_sarif_report(
+        job_id=job_id,
+        target_url=orchestrator.target_url,
+        findings=orchestrator.tools.findings_ledger,
+    )
+
+
+@app.get("/v1/pentest/{job_id}/export/report", response_class=PlainTextResponse)
+def export_executive_report(job_id: str):
+    """Export high-impact executive compliance markdown pentest report."""
+    orchestrator = pentest_orchestrators.get(job_id)
+    if not orchestrator:
+        raise HTTPException(404, "Pentest job not found")
+    report_md = generate_executive_report_markdown(
+        summary=orchestrator.summary or {
+            "target_url": orchestrator.target_url,
+            "duration_seconds": 15,
+        },
+        findings=orchestrator.tools.findings_ledger,
+        coverage=orchestrator.tools.coverage_ledger,
+    )
+    return PlainTextResponse(report_md, media_type="text/markdown")
+
+
+@app.get("/v1/pentest/{job_id}/export/audit")
+def export_audit_log(job_id: str):
+    """Export tamper-evident JSON audit trail of all tested surfaces and actions."""
+    orchestrator = pentest_orchestrators.get(job_id)
+    if not orchestrator:
+        raise HTTPException(404, "Pentest job not found")
+    return generate_json_audit_log(
+        job_id=job_id,
+        target_url=orchestrator.target_url,
+        summary=orchestrator.summary or {},
+        findings=orchestrator.tools.findings_ledger,
+        coverage=orchestrator.tools.coverage_ledger,
+    )
+
 
