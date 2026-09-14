@@ -26,7 +26,10 @@ type DockerRunner struct {
 }
 
 func NewDockerRunner(cli *client.Client) DockerRunner {
-	image := os.Getenv("SENTRA_SCANNER_IMAGE")
+	image := os.Getenv("ZERRA_SCANNER_IMAGE")
+	if image == "" {
+		image = os.Getenv("SENTRA_SCANNER_IMAGE")
+	}
 	if image == "" {
 		image = "scanner"
 	}
