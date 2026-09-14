@@ -87,6 +87,29 @@ class PolicyEngine:
         elif policy.rule_type == "cross_tenant_access":
             matched = bool(event.tenant_id and identity.tenant_id and event.tenant_id != identity.tenant_id)
             action, reason, evidence = PolicyAction(policy.parameters.get("action", "block")), "cross-tenant target access", {"target_tenant": event.tenant_id, "home_tenant": identity.tenant_id}
+        elif policy.rule_type in {"virtual_patch", "virtual_patch_block", "virtual_patch_step_up"}:
+            pattern = str(policy.parameters.get("target_pattern", "*"))
+            method_target = str(policy.parameters.get("target_method", "*")).upper()
+            path_matched = fnmatchcase(event.endpoint, pattern)
+            method_matched = (method_target == "*" or event.method.upper() == method_target)
+            
+            # Check optional conditions like cross-tenant constraint
+            cond = policy.parameters.get("policy_condition") or {}
+            cond_matched = True
+            if cond.get("require_tenant_match") or cond.get("check") == "cross_tenant_object":
+                cond_matched = bool(event.tenant_id and identity.tenant_id and event.tenant_id != identity.tenant_id)
+
+            if path_matched and method_matched and cond_matched:
+                matched = True
+                act_str = str(policy.parameters.get("action", "block")).lower()
+                action = PolicyAction.BLOCK if act_str == "block" else PolicyAction.STEP_UP if act_str == "step_up" else PolicyAction.ALLOW
+                reason = f"Inline virtual patch '{policy.name}' matched {event.method} {event.endpoint}"
+                evidence = {
+                    "target_pattern": pattern,
+                    "target_method": method_target,
+                    "action": act_str,
+                    "virtual_patch_id": policy.id,
+                }
         return PolicyEvaluation(policy_id=policy.id, policy_name=policy.name, matched=matched, action=action,
                                 reason=reason if matched else "rule did not match", evidence=evidence if matched else {},
                                 evaluated_at=datetime.now(timezone.utc))
