@@ -27,6 +27,11 @@ class PolicyEngine:
     def add_policy(self, policy: Policy) -> None:
         self._policies.append(policy)
 
+    def remove_policy(self, policy_id: str) -> bool:
+        initial_len = len(self._policies)
+        self._policies = [p for p in self._policies if p.id != policy_id]
+        return len(self._policies) < initial_len
+
     def list_policies(self, status: PolicyStatus | None = None) -> list[Policy]:
         return [policy for policy in self._policies if status is None or policy.status is status]
 
