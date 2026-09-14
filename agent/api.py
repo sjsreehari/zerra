@@ -1,4 +1,4 @@
-"""Local FastAPI inference and protected-demo service for SENTRA."""
+"""Local FastAPI inference and protected-demo service for Zerra."""
 
 from datetime import datetime, timezone
 from uuid import uuid4
@@ -27,7 +27,7 @@ from agent.pentest import (
     generate_sarif_report,
 )
 
-app = FastAPI(title="SENTRA Inference API", version="0.1.0")
+app = FastAPI(title="Zerra Inference API", version="0.1.0")
 app.add_middleware(CORSMiddleware, 
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8080", "http://127.0.0.1:8080"],
     allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
