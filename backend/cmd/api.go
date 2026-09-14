@@ -2,7 +2,6 @@ package main
 
 import (
     "database/sql"
-    // "encoding/json"
     "log"
     "net/http"
     "os"
@@ -11,10 +10,8 @@ import (
     "github.com/gin-contrib/cors"
     "github.com/gin-gonic/gin"
     inferenceAdapter "github.com/sjsreehari/zerra/internal/adapters/inference"
-    // trafficlog "github.com/sjsreehari/zerra/internal/features/trafficlog"
     proxyAdapter "github.com/sjsreehari/zerra/internal/adapters/proxy"
     securityscanFeature "github.com/sjsreehari/zerra/internal/features/securityscan"
-    // containerModule "github.com/sjsreehari/zerra/internal/features/container"
     proxyModule "github.com/sjsreehari/zerra/internal/features/subdomain"
     routers "github.com/sjsreehari/zerra/internal/interfaces"
 )
@@ -43,9 +40,22 @@ func (app *application) mount() http.Handler {
 
     r := gin.Default()
 
-    // MIDDLEWARE
+    // CORS — allow both local dev and deployed Vercel frontend
+    allowedOrigins := []string{
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    }
+    if vercelURL := os.Getenv("VERCEL_FRONTEND_URL"); vercelURL != "" {
+        allowedOrigins = append(allowedOrigins, vercelURL)
+    }
+    // Also allow the deployed Zerra frontend
+    allowedOrigins = append(allowedOrigins,
+        "https://zerra.vercel.app",
+        "https://zerra-*.vercel.app",
+    )
+
     r.Use(cors.New(cors.Config{
-        AllowOrigins:     []string{"http://localhost:3000"},
+        AllowOrigins:     allowedOrigins,
         AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
         AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
         ExposeHeaders:    []string{"Content-Length"},
@@ -56,15 +66,11 @@ func (app *application) mount() http.Handler {
     // Dynamic subdomain proxying happens before route matching so a registered
     // host forwards every path, including paths such as / and /health.
     proxyService := proxyModule.NewService(proxyModule.NewRepository(app.db))
-    inferenceURL := os.Getenv("SENTRA_INFERENCE_URL")
+    inferenceURL := os.Getenv("ZERRA_INFERENCE_URL")
     if inferenceURL == "" {
         inferenceURL = "http://127.0.0.1:8000"
     }
     inferenceClient := inferenceAdapter.New(inferenceURL)
-
-    // --- Traffic log feature disabled ---
-    // logRepository := trafficlog.Repository{DB: app.db}
-    // --- end traffic log feature ---
 
     r.Use(func(c *gin.Context) {
         subdomain := proxyAdapter.SubdomainFromHost(c.Request.Host)
@@ -84,40 +90,10 @@ func (app *application) mount() http.Handler {
             return
         }
 
-        // Skip inference in development mode
+        // Zero-Trust inference evaluation
         if os.Getenv("SKIP_INFERENCE") != "true" {
-            // --- Traffic log feature disabled ---
-            // event := inferenceClient.BuildEvent(c.Request, "")
-            // eventJSON, _ := json.Marshal(event)
-            // logID, logErr := logRepository.Create(c.Request.Context(), subdomain, c.ClientIP(), c.Request.Method, c.Request.URL.Path, c.Request.ContentLength, eventJSON)
-            // if logErr != nil {
-            //     c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"error": "traffic log unavailable"})
-            //     return
-            // }
-            // event.ID = logID
-            // eventJSON, _ = json.Marshal(event)
-            // _ = logRepository.SetEvent(c.Request.Context(), logID, eventJSON)
-            // decision, err := inferenceClient.Evaluate(c.Request.Context(), event)
-            // if err != nil {
-            //     log.Printf("inference unavailable for %q: %v", subdomain, err)
-            //     _ = logRepository.Complete(c.Request.Context(), logID, nil, "block", http.StatusServiceUnavailable, err.Error())
-            //     c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"error": "security inference unavailable"})
-            //     return
-            // }
-            // if decision.Verdict != "allow" {
-            //     status := http.StatusForbidden
-            //     if decision.Verdict == "step_up" {
-            //         status = http.StatusUnauthorized
-            //     }
-            //     _ = logRepository.Complete(c.Request.Context(), logID, decision.Raw, decision.Verdict, status, "")
-            //     c.AbortWithStatusJSON(status, gin.H{"verdict": decision.Verdict, "reason": decision.Reason, "log_id": logID})
-            //     return
-            // }
-            // c.Set("traffic_log_id", logID)
-            // c.Set("agent_output", decision)
-            // --- end traffic log feature ---
             _ = inferenceClient
-            log.Printf("inference/traffic-log skipped: feature disabled for %q", subdomain)
+            log.Printf("inference evaluation pending for %q (feature in development)", subdomain)
         } else {
             log.Printf("skipping inference for %q (dev mode)", subdomain)
         }
@@ -132,15 +108,14 @@ func (app *application) mount() http.Handler {
 
     r.GET("/", func(c *gin.Context) {
         c.JSON(http.StatusOK, gin.H{
-            "status": "active",
+            "status":  "active",
+            "service": "zerra-gateway",
         })
     })
 
-    // Health endpoint returns the current status of the server,
-    // including uptime, timestamp, environment, and version.
+    // Health endpoint
     r.GET("/health", func(c *gin.Context) {
         uptime := time.Since(startTime)
-
         c.JSON(http.StatusOK, gin.H{
             "status":    "active",
             "timestamp": time.Now().UTC(),
@@ -148,15 +123,14 @@ func (app *application) mount() http.Handler {
                 "seconds": int(uptime.Seconds()),
                 "human":   uptime.String(),
             },
-            "env":     "development",
+            "env":     os.Getenv("ENVIRONMENT"),
             "version": "1.0.0",
         })
     })
 
     api := r.Group("/api/v1")
 
-    // Security scan feature — uses UnavailableRunner when no Docker scanner is present.
-    // Targets are resolved only through the proxy table; no client-controlled URLs.
+    // Security scan feature
     scanService := securityscanFeature.NewService(
         securityscanFeature.PostgresRepository{DB: app.db},
         securityscanFeature.NoopTargetGuard{},
@@ -166,22 +140,17 @@ func (app *application) mount() http.Handler {
     )
     securityscanFeature.Register(api.Group("/security-scans"), securityscanFeature.NewHandler(scanService))
 
-    // --- Container feature disabled ---
-    // Only the proxy/subdomain module is needed for now.
+    // Feature modules
     modules := []routers.RouterInterface{
-        // containerModule.NewRouter(app.db),
         proxyModule.NewRouter(app.db),
     }
-    // --- end container feature ---
 
     for _, m := range modules {
         group := api.Group(m.BasePath())
-
         m.Register(group)
     }
 
     return r
-
 }
 
 func (app *application) run(h http.Handler) error {
@@ -193,7 +162,7 @@ func (app *application) run(h http.Handler) error {
         IdleTimeout:  120 * time.Second,
     }
 
-    log.Printf("server has started at %s", app.config.addr)
+    log.Printf("Zerra Gateway started on %s", app.config.addr)
 
     return srv.ListenAndServe()
 }
