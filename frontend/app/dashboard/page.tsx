@@ -27,13 +27,30 @@ import {
 export default function DashboardPage() {
   const [activeJobsCount, setActiveJobsCount] = useState(0);
   const [proxiesCount, setProxiesCount] = useState(0);
+  const [policiesCount, setPoliciesCount] = useState(6);
 
   useEffect(() => {
-    // Load proxy count if available
+    // Load proxy count
     fetch(APIENDPOINT.Proxy)
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) setProxiesCount(data.length);
+      })
+      .catch(() => {});
+
+    // Load pentest jobs count
+    fetch(APIENDPOINT.PentestJobs)
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) setActiveJobsCount(data.length);
+      })
+      .catch(() => {});
+
+    // Load policies count
+    fetch(APIENDPOINT.Policies)
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) setPoliciesCount(data.length);
       })
       .catch(() => {});
   }, []);
@@ -109,11 +126,11 @@ export default function DashboardPage() {
 
           <div className="bg-white/5 border border-white/10 rounded-xl p-4">
             <div className="flex items-center justify-between text-xs text-text-secondary mb-1">
-              <span>Inline Virtual Patches</span>
+              <span>Zero-Trust Policies</span>
               <Lock size={14} className="text-purple-400" />
             </div>
-            <div className="text-2xl font-bold text-purple-300">Active (Auto)</div>
-            <div className="text-[11px] text-text-muted mt-1">Zero-Trust Policy Enforced</div>
+            <div className="text-2xl font-bold text-purple-300">{policiesCount} Active</div>
+            <div className="text-[11px] text-text-muted mt-1">Gateway Virtual Patches</div>
           </div>
         </div>
       </div>
