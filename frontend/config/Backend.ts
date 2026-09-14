@@ -23,4 +23,11 @@ export const APIENDPOINT = {
   SecurityScanJob: (id: string) => `${GO_API}/api/v1/security-scans/${id}`,
   SecurityScanFindings: (id: string) => `${GO_API}/api/v1/security-scans/${id}/findings`,
   SecurityScanCancel: (id: string) => `${GO_API}/api/v1/security-scans/${id}/cancel`,
+  PentestSkills: `${SENTRA_API}/v1/pentest/skills`,
+  PentestStart: `${SENTRA_API}/v1/pentest/start`,
+  PentestStream: (id: string) => `${SENTRA_API}/v1/pentest/${id}/stream`,
+  PentestStatus: (id: string) => `${SENTRA_API}/v1/pentest/${id}/status`,
+  PentestFindings: (id: string) => `${SENTRA_API}/v1/pentest/${id}/findings`,
+  PentestCoverage: (id: string) => `${SENTRA_API}/v1/pentest/${id}/coverage`,
+  PentestApplyPatch: (id: string) => `${SENTRA_API}/v1/pentest/${id}/apply-patch`,
 };

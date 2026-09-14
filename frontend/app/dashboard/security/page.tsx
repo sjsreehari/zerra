@@ -18,7 +18,9 @@ import {
   Loader2,
   AlertCircle,
   Info,
+  Zap,
 } from "lucide-react";
+import AutonomousPentestStudio from "./AutonomousPentestStudio";
 
 type ScanMode = "passive" | "safe_active";
 type JobStatus = "queued" | "running" | "completed" | "failed";
@@ -261,6 +263,7 @@ export default function SecurityScansPage() {
   const [formError, setFormError] = useState("");
   const [loadingJobs, setLoadingJobs] = useState(true);
   const [filterSubdomain, setFilterSubdomain] = useState("");
+  const [viewMode, setViewMode] = useState<"autonomous" | "standard">("autonomous");
 
   const loadJobs = useCallback(async (subdomain = "") => {
     const url = subdomain ? `${APIENDPOINT.SecurityScans}?subdomain=${subdomain}` : APIENDPOINT.SecurityScans;
@@ -308,21 +311,51 @@ export default function SecurityScansPage() {
 
   return (
     <div className="space-y-8">
-      {/* Page header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-white tracking-tight">OWASP Security Scans</h1>
-            {hasActive && (
-              <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 inline-flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" /> Scanning
-              </span>
-            )}
-          </div>
-          <p className="text-sm text-white/50 mt-1">
-            Run OWASP API Security Top 10 passive checks against your registered proxy subdomains.
-          </p>
-        </div>
+      {/* Top View Selector */}
+      <div className="flex items-center gap-2 p-1.5 rounded-xl bg-white/5 border border-white/10 w-fit">
+        <button
+          onClick={() => setViewMode("autonomous")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+            viewMode === "autonomous"
+              ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/20"
+              : "text-white/60 hover:text-white"
+          }`}
+        >
+          <Zap className="h-4 w-4 text-amber-400" />
+          Autonomous AI Pentest Studio
+        </button>
+        <button
+          onClick={() => setViewMode("standard")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+            viewMode === "standard"
+              ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/20"
+              : "text-white/60 hover:text-white"
+          }`}
+        >
+          <ShieldCheck className="h-4 w-4 text-emerald-400" />
+          OWASP Standard Scans
+        </button>
+      </div>
+
+      {viewMode === "autonomous" ? (
+        <AutonomousPentestStudio />
+      ) : (
+        <div className="space-y-8">
+          {/* Page header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold text-white tracking-tight">OWASP Security Scans</h1>
+                {hasActive && (
+                  <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 inline-flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" /> Scanning
+                  </span>
+                )}
+              </div>
+              <p className="text-sm text-white/50 mt-1">
+                Run OWASP API Security Top 10 passive checks against your registered proxy subdomains.
+              </p>
+            </div>
 
         <button
           onClick={() => { setLoadingJobs(true); void loadJobs(filterSubdomain); }}
@@ -478,6 +511,9 @@ export default function SecurityScansPage() {
           ))}
         </div>
       )}
+        </div>
+      )}
     </div>
   );
 }
+
