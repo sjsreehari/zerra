@@ -42,3 +42,6 @@ venv/
 *.sqlite
 *.db
 *.log
+
+# Reference materials
+reference/

@@ -4,17 +4,20 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 import time
+import asyncio
+import json
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, StreamingResponse
 
-from agent.contracts import CallEvent, DecisionResponse, IdentityType
+from agent.contracts import CallEvent, DecisionResponse, IdentityType, Policy, PolicyStatus
 from agent.agents import ThreatHunter
 from agent.attack_sim import AttackSimulator, fast_invoice_enumeration, normal_repeating_user_traffic
 from agent.main import create_demo_engine
 from agent.mock_data import AccessDeniedError, MockDataStore
 from agent.policy_recommendations import PolicyRecommendationService
 from agent.reports import render_markdown
+from agent.pentest import PentestOrchestrator, PentestScanConfig, SkillsRegistry
 
 app = FastAPI(title="SENTRA Inference API", version="0.1.0")
 app.add_middleware(CORSMiddleware, 
@@ -25,6 +28,7 @@ data = MockDataStore()
 risk_cards = []
 investigations = {}
 recommendations = {}
+pentest_orchestrators: dict[str, PentestOrchestrator] = {}
 threat_hunter = ThreatHunter()
 recommendation_service = PolicyRecommendationService()
 
@@ -239,3 +243,139 @@ def replay_attack(risk_card_id: str):
         "replay_first_flagged": result.first_flagged_call,
         "verdict": "attack_caught" if result.blocked > 0 else "attack_missed",
     }
+
+
+# ==============================================================================
+# Autonomous AI Continuous Pentest & Validation Endpoints
+# ==============================================================================
+
+@app.get("/v1/pentest/skills")
+def list_pentest_skills():
+    """List available domain-specific pentesting skills."""
+    skills = SkillsRegistry.list_skills()
+    return [
+        {
+            "id": s.id,
+            "name": s.name,
+            "category": s.category,
+            "owasp_id": s.owasp_id,
+            "cwe": s.cwe,
+            "description": s.description,
+            "counterevidence_guide": s.counterevidence_guide,
+        }
+        for s in skills
+    ]
+
+
+@app.post("/v1/pentest/start")
+async def start_pentest(config: PentestScanConfig):
+    """Launch an autonomous multi-agent pentesting scan."""
+    orchestrator = PentestOrchestrator(config)
+    pentest_orchestrators[config.job_id] = orchestrator
+    # Launch execution task in background
+    asyncio.create_task(orchestrator.run())
+    return {
+        "job_id": config.job_id,
+        "status": "started",
+        "target_url": config.target_url,
+        "mode": config.mode,
+        "active_skills": config.enabled_skills,
+    }
+
+
+@app.get("/v1/pentest/{job_id}/stream")
+async def stream_pentest_events(job_id: str):
+    """Server-Sent Events (SSE) stream for live agent execution telemetry."""
+    orchestrator = pentest_orchestrators.get(job_id)
+    if not orchestrator:
+        raise HTTPException(404, "Pentest job not found")
+
+    async def event_generator():
+        try:
+            async for event in orchestrator.subscribe_events():
+                payload = json.dumps(event.model_dump(), default=str)
+                yield f"data: {payload}\n\n"
+        except asyncio.CancelledError:
+            pass
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+@app.get("/v1/pentest/{job_id}/status")
+def get_pentest_status(job_id: str):
+    """Check status, summary metrics, and progress of a pentest job."""
+    orchestrator = pentest_orchestrators.get(job_id)
+    if not orchestrator:
+        raise HTTPException(404, "Pentest job not found")
+    return {
+        "job_id": job_id,
+        "status": orchestrator.status,
+        "target_url": orchestrator.target_url,
+        "summary": orchestrator.summary,
+        "findings_count": len(orchestrator.tools.findings_ledger),
+        "coverage_count": len(orchestrator.tools.coverage_ledger),
+    }
+
+
+@app.get("/v1/pentest/{job_id}/findings")
+def get_pentest_findings(job_id: str):
+    """Retrieve full findings list with verified PoCs and virtual patches."""
+    orchestrator = pentest_orchestrators.get(job_id)
+    if not orchestrator:
+        raise HTTPException(404, "Pentest job not found")
+    return [f.model_dump() for f in orchestrator.tools.findings_ledger]
+
+
+@app.get("/v1/pentest/{job_id}/coverage")
+def get_pentest_coverage(job_id: str):
+    """Retrieve full attack surface coverage ledger."""
+    orchestrator = pentest_orchestrators.get(job_id)
+    if not orchestrator:
+        raise HTTPException(404, "Pentest job not found")
+    return [c.model_dump() for c in orchestrator.tools.coverage_ledger]
+
+
+@app.post("/v1/pentest/{job_id}/apply-patch")
+def apply_virtual_patch(job_id: str, patch_id: str):
+    """Apply generated Zero-Trust Virtual Patch directly to the Gateway policy engine."""
+    orchestrator = pentest_orchestrators.get(job_id)
+    if not orchestrator:
+        raise HTTPException(404, "Pentest job not found")
+
+    target_finding = None
+    for f in orchestrator.tools.findings_ledger:
+        if f.virtual_patch and f.virtual_patch.id == patch_id:
+            target_finding = f
+            break
+
+    if not target_finding or not target_finding.virtual_patch:
+        raise HTTPException(404, "Virtual patch not found")
+
+    patch = target_finding.virtual_patch
+    # Construct a real Gateway Policy rule
+    new_policy = Policy(
+        id=f"vp-{patch.id[:8]}",
+        name=f"Virtual Patch: {patch.rule_name}",
+        description=patch.description,
+        rule_type="agent_scope_contract" if "BOLA" in patch.rule_name else "cross_tenant_access",
+        parameters={
+            "target_pattern": patch.target_endpoint_pattern,
+            "action": patch.action.lower(),
+            "applied_from_pentest_job": job_id,
+        },
+        version=1,
+        status=PolicyStatus.ACTIVE,
+    )
+    engine.policy_engine.add_policy(new_policy)
+    patch.status = "applied"
+    patch.applied_at = datetime.now(timezone.utc)
+
+    return {
+        "status": "applied",
+        "patch_id": patch.id,
+        "policy_id": new_policy.id,
+        "rule_name": new_policy.name,
+        "gateway_verdict_enforced": patch.action,
+        "applied_at": patch.applied_at.isoformat(),
+    }
+
