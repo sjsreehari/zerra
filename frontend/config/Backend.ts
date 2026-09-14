@@ -37,4 +37,7 @@ export const APIENDPOINT = {
   PentestExportSarif: (id: string) => `${ZERRA_API}/v1/pentest/${id}/export/sarif`,
   PentestExportReport: (id: string) => `${ZERRA_API}/v1/pentest/${id}/export/report`,
   PentestExportAudit: (id: string) => `${ZERRA_API}/v1/pentest/${id}/export/audit`,
+  PentestExportLatestSarif: `${ZERRA_API}/v1/pentest/latest/export/sarif`,
+  PentestExportLatestReport: `${ZERRA_API}/v1/pentest/latest/export/report`,
+  PentestExportLatestAudit: `${ZERRA_API}/v1/pentest/latest/export/audit`,
 };
