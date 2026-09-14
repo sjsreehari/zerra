@@ -28,7 +28,7 @@ export default function DashboardLayout({
   const TABS = [
     {
       id: 1,
-      tab_name: "Dashboard",
+      tab_name: "Command Center",
       icon: LayoutDashboard,
       has_sub_nav: false,
       main_tab_href: "/dashboard",
@@ -36,50 +36,50 @@ export default function DashboardLayout({
     },
     {
       id: 2,
-      tab_name: "APIs",
+      tab_name: "AI Pentest Studio",
+      icon: AlertTriangle,
+      has_sub_nav: false,
+      main_tab_href: "/dashboard/security",
+      sub_navs: []
+    },
+    {
+      id: 3,
+      tab_name: "APIs & Routes",
       icon: Waypoints,
       has_sub_nav: false,
       main_tab_href: "/dashboard/api",
       sub_navs: []
     },
     {
-      id: 3,
-      tab_name: "Policies",
+      id: 4,
+      tab_name: "Zero-Trust Policies",
       icon: ShieldCheck,
       has_sub_nav: false,
-      main_tab_href: "/policies",
-      sub_navs: []
-    },
-    {
-      id: 4,
-      tab_name: "Traffic",
-      icon: Radar,
-      has_sub_nav: false,
-      main_tab_href: "/traffic",
+      main_tab_href: "/dashboard/policies",
       sub_navs: []
     },
     {
       id: 5,
-      tab_name: "Threats",
-      icon: AlertTriangle,
+      tab_name: "Live Traffic",
+      icon: Radar,
       has_sub_nav: false,
-      main_tab_href: "/threats",
+      main_tab_href: "/dashboard/traffic",
       sub_navs: []
     },
     {
       id: 6,
-      tab_name: "Team",
-      icon: Users,
+      tab_name: "Threats & Risks",
+      icon: AlertTriangle,
       has_sub_nav: false,
-      main_tab_href: "/team",
+      main_tab_href: "/dashboard/threats",
       sub_navs: []
     },
     {
       id: 7,
-      tab_name: "Reports",
+      tab_name: "Compliance Reports",
       icon: BarChart3,
       has_sub_nav: false,
-      main_tab_href: "/reports",
+      main_tab_href: "/dashboard/reports",
       sub_navs: []
     },
     {
@@ -87,7 +87,7 @@ export default function DashboardLayout({
       tab_name: "Settings",
       icon: Settings,
       has_sub_nav: false,
-      main_tab_href: "/settings",
+      main_tab_href: "/dashboard/settings",
       sub_navs: []
     }
   ];

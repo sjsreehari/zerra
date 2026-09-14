@@ -1,4 +1,4 @@
-import { CircleQuestionMark, Moon, Settings } from "lucide-react";
+import { CircleHelp, Moon, Settings } from "lucide-react";
 
 
 export const SidebarBottomTabs = [
@@ -11,10 +11,11 @@ export const SidebarBottomTabs = [
         id: 101,
         tab_name: "Settings",
         icon: Settings,
+        main_tab_href: "/dashboard/settings",
     },
     {
         id: 102,
         tab_name: "Help & Support",
-        icon: CircleQuestionMark,
+        icon: CircleHelp,
     },
-]
+]
