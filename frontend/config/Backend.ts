@@ -40,4 +40,20 @@ export const APIENDPOINT = {
   PentestExportLatestSarif: `${ZERRA_API}/v1/pentest/latest/export/sarif`,
   PentestExportLatestReport: `${ZERRA_API}/v1/pentest/latest/export/report`,
   PentestExportLatestAudit: `${ZERRA_API}/v1/pentest/latest/export/audit`,
+
+  // ── Zerra v2: Scanner & Notifications ──
+  Repos: `${ZERRA_API}/v1/repos`,
+  RepoDetail: (id: string) => `${ZERRA_API}/v1/repos/${id}`,
+  RepoDelete: (id: string) => `${ZERRA_API}/v1/repos/${id}`,
+  RepoScan: (id: string) => `${ZERRA_API}/v1/repos/${id}/scan`,
+  ScanDirect: `${ZERRA_API}/v1/scan`,
+  Scans: `${ZERRA_API}/v1/scans`,
+  ScanDetail: (id: string) => `${ZERRA_API}/v1/scans/${id}`,
+  ScanFindings: (id: string) => `${ZERRA_API}/v1/scans/${id}/findings`,
+  ScanSarif: (id: string) => `${ZERRA_API}/v1/scans/${id}/sarif`,
+  Findings: `${ZERRA_API}/v1/findings`,
+  WebhookGithub: `${ZERRA_API}/v1/webhooks/github`,
+  NotificationsTest: `${ZERRA_API}/v1/notifications/test`,
+  NotificationsChannels: `${ZERRA_API}/v1/notifications/channels`,
+  DashboardStats: `${ZERRA_API}/v1/dashboard/stats`,
 };

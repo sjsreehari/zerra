@@ -3,11 +3,11 @@
 import { useState } from "react";
 import {
   LayoutDashboard,
-  Radar,
+  GitBranch,
+  Search,
+  Bug,
+  Bell,
   ShieldCheck,
-  Waypoints,
-  AlertTriangle,
-  Users,
   BarChart3,
   Settings,
 } from "lucide-react";
@@ -27,7 +27,7 @@ export default function DashboardLayout({
   const TABS = [
     {
       id: 1,
-      tab_name: "Command Center",
+      tab_name: "Dashboard",
       icon: LayoutDashboard,
       has_sub_nav: false,
       main_tab_href: "/dashboard",
@@ -35,47 +35,47 @@ export default function DashboardLayout({
     },
     {
       id: 2,
-      tab_name: "AI Pentest Studio",
-      icon: AlertTriangle,
+      tab_name: "Repositories",
+      icon: GitBranch,
       has_sub_nav: false,
-      main_tab_href: "/dashboard/security",
+      main_tab_href: "/dashboard/repositories",
       sub_navs: []
     },
     {
       id: 3,
-      tab_name: "APIs & Routes",
-      icon: Waypoints,
+      tab_name: "Scans",
+      icon: Search,
       has_sub_nav: false,
-      main_tab_href: "/dashboard/api",
+      main_tab_href: "/dashboard/scans",
       sub_navs: []
     },
     {
       id: 4,
-      tab_name: "Zero-Trust Policies",
+      tab_name: "Findings",
+      icon: Bug,
+      has_sub_nav: false,
+      main_tab_href: "/dashboard/findings",
+      sub_navs: []
+    },
+    {
+      id: 5,
+      tab_name: "Notifications",
+      icon: Bell,
+      has_sub_nav: false,
+      main_tab_href: "/dashboard/notifications",
+      sub_navs: []
+    },
+    {
+      id: 6,
+      tab_name: "Policies",
       icon: ShieldCheck,
       has_sub_nav: false,
       main_tab_href: "/dashboard/policies",
       sub_navs: []
     },
     {
-      id: 5,
-      tab_name: "Live Traffic",
-      icon: Radar,
-      has_sub_nav: false,
-      main_tab_href: "/dashboard/traffic",
-      sub_navs: []
-    },
-    {
-      id: 6,
-      tab_name: "Threats & Risks",
-      icon: AlertTriangle,
-      has_sub_nav: false,
-      main_tab_href: "/dashboard/threats",
-      sub_navs: []
-    },
-    {
       id: 7,
-      tab_name: "Compliance Reports",
+      tab_name: "Reports",
       icon: BarChart3,
       has_sub_nav: false,
       main_tab_href: "/dashboard/reports",
@@ -101,9 +101,9 @@ export default function DashboardLayout({
         {
           showAnnouncement && (
             <AnnouncementBar
-              message="Just shipped: zero-trust policy templates are here."
-              linkHref="/changelog"
-              linkLabel="See what's new"
+              message="Zerra v2 is live — auto-scan repos, generate fix PRs, and get alerts on WhatsApp, Discord, Teams & Email."
+              linkHref="https://github.com/sjsreehari/zerra"
+              linkLabel="Star on GitHub"
               close={() => setShowAnnouncement(false)}
             />
           )
