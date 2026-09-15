@@ -21,12 +21,14 @@ export default function Topbar() {
     <header className="w-full h-16 border-b border-border-default bg-bg-surface/80 backdrop-blur-md px-6 flex items-center justify-between shrink-0 z-10">
       {/* Left: Environment and Status */}
       <div className="flex items-center gap-3">
-        <span className="text-sm font-bold text-text-primary tracking-tight">
-          Security Command Center
-        </span>
+        <div className="flex items-center gap-2 text-xs text-text-muted">
+          <span className="font-semibold text-text-primary">Console</span>
+          <span>/</span>
+          <span className="text-text-secondary">Security Operations</span>
+        </div>
         <span className="hidden sm:inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[11px] font-medium text-emerald-400">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          Active
+          Online
         </span>
       </div>
 

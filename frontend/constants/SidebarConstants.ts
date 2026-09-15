@@ -1,12 +1,6 @@
-import { CircleHelp, FileText, Settings } from "lucide-react";
+import { CircleHelp, Settings } from "lucide-react";
 
 export const SidebarBottomTabs = [
-    {
-        id: 100,
-        tab_name: "Audit Reports",
-        icon: FileText,
-        main_tab_href: "/dashboard/reports",
-    },
     {
         id: 101,
         tab_name: "Settings",
@@ -15,7 +9,7 @@ export const SidebarBottomTabs = [
     },
     {
         id: 102,
-        tab_name: "System Docs",
+        tab_name: "Documentation",
         icon: CircleHelp,
         main_tab_href: "https://github.com/sjsreehari/zerra",
     },

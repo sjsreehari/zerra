@@ -76,14 +76,6 @@ export default function DashboardLayout({
       has_sub_nav: false,
       main_tab_href: "/dashboard/reports",
       sub_navs: []
-    },
-    {
-      id: 8,
-      tab_name: "Settings",
-      icon: Settings,
-      has_sub_nav: false,
-      main_tab_href: "/dashboard/settings",
-      sub_navs: []
     }
   ];
 

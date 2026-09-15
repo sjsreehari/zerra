@@ -43,7 +43,7 @@ export default function Sidebar({ tabs } : SidebarProps) {
                     </div>
                     <div>
                         <h3 className="font-bold text-lg tracking-tight">Zerra</h3>
-                        <span className="text-[10px] text-emerald-400 font-mono">● LIVE GATEWAY</span>
+                        <span className="text-[10px] text-emerald-400 font-mono">● AUTONOMOUS DEFENSE</span>
                     </div>
                 </div>
                 <div className="border-b border-b-border-default pb-4"/>
