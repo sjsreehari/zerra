@@ -2,20 +2,20 @@
 
 # 🛡️ Zerra
 
-### Autonomous Continuous Security & Auto-PR Platform
+**Autonomous Continuous Security & Auto-PR Platform**
 
-**Monitor repositories on every push/PR • Synthesize verified fixes into automated Pull Requests • Push instant alerts to WhatsApp, Discord, MS Teams & Email**
+*Continuous SAST, SCA, and Secret scanning with automated Pull Request remediation and real-time incident delivery across WhatsApp, Discord, Microsoft Teams, and Email.*
 
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg?style=for-the-badge)](LICENSE)
-[![CI](https://img.shields.io/badge/CI-Passing-emerald?style=for-the-badge&logo=githubactions&logoColor=white)](.github/workflows/ci.yml)
-[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
-[![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?style=for-the-badge&logo=go&logoColor=white)](https://golang.org)
-[![Next.js](https://img.shields.io/badge/Next.js-15-black?style=for-the-badge&logo=nextdotjs&logoColor=white)](https://nextjs.org)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://typescriptlang.org)
-[![SARIF](https://img.shields.io/badge/OASIS_SARIF-2.1.0-orange?style=for-the-badge)](https://sarifweb.azurewebsites.net/)
-[![PRs Welcome](https://img.shields.io/badge/PRs-Welcome-brightgreen.svg?style=for-the-badge)](CONTRIBUTING.md)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg?style=flat-square)](LICENSE)
+[![CI](https://img.shields.io/badge/CI-Passing-emerald?style=flat-square&logo=githubactions&logoColor=white)](.github/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
+[![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat-square&logo=go&logoColor=white)](https://golang.org)
+[![Next.js](https://img.shields.io/badge/Next.js-15-black?style=flat-square&logo=nextdotjs&logoColor=white)](https://nextjs.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://typescriptlang.org)
+[![SARIF](https://img.shields.io/badge/OASIS_SARIF-2.1.0-orange?style=flat-square)](https://sarifweb.azurewebsites.net/)
+[![PRs Welcome](https://img.shields.io/badge/PRs-Welcome-brightgreen.svg?style=flat-square)](CONTRIBUTING.md)
 
-[Features](#-key-features) • [Architecture](#-architecture) • [Quickstart](#-quickstart) • [Integrations](#-notification-channels) • [API Reference](#-api-reference) • [Contributing](#-contributing)
+[Features](#-key-features) • [Quickstart](#-quickstart) • [CLI Scanner](#-cli-scanner) • [GitHub Action](#-github-action) • [Notification Channels](#-notification-channels) • [API Reference](#-api-reference) • [Contributing](#-contributing)
 
 </div>
 
@@ -23,109 +23,82 @@
 
 ## ⚡ Overview
 
-**Zerra** is an open-source autonomous security engineering platform. It replaces passive security scanners with an active, continuous defense loop:
+**Zerra** is an open-source autonomous security engineering platform built to eliminate the gap between vulnerability detection and remediation. 
 
-1. **Monitors repositories** continuously via GitHub Webhooks on every push and pull request.
-2. **Executes triple-engine analysis**:
-   - **SAST**: Static analysis detecting SQLi, Command Injection, XSS, Path Traversal, and Insecure Deserialization.
-   - **SCA**: Software Composition Analysis auditing dependencies across `package.json`, `requirements.txt`, `go.mod`, `pom.xml`, and `Cargo.toml`.
-   - **Secrets Detection**: High-entropy scanning identifying 25+ credential types (AWS, Stripe, GitHub PAT, Slack, OpenAI, Private Keys).
-3. **Opens Automated Fix PRs**: Automatically synthesizes corrected code patches, generates an isolated branch, and opens a GitHub Pull Request with zero manual effort.
-4. **Dispatches Real-time Alerts**: Instantly notifies on-call teams via **WhatsApp**, **Discord**, **Microsoft Teams**, and **Email**.
-5. **Zero-Trust Inline Defense**: Integrates with a high-performance Go reverse proxy gateway to deploy instant virtual patches against active attacks.
+Rather than generating passive PDF reports, Zerra actively closes security debt:
+
+1. **Continuous Code Auditing**: Automatically triggered via GitHub Webhooks on every push and pull request.
+2. **Triple-Engine Detection**:
+   - **Static Analysis (SAST)**: AST and pattern rules for SQLi, Command Injection, XSS, Path Traversal, and Insecure Deserialization.
+   - **Dependency Scanning (SCA)**: Real-time CVE auditing across `npm`, `pip`, `go mod`, `maven`, and `cargo` ecosystems via OSV.dev.
+   - **Secret Leak Detection**: High-precision regex and Shannon entropy analysis detecting 25+ secret and API credential formats.
+3. **Automated Remediation (Auto-PR)**: Synthesizes verified replacement patches, cuts an isolated branch (`zerra/fix-<id>`), and opens a GitHub Pull Request with zero manual effort.
+4. **Real-time Alert Dispatch**: Instantly notifies engineering and SOC teams on **WhatsApp**, **Discord**, **Microsoft Teams**, and **Email**.
+5. **Standardized Compliance**: Full export support for OASIS SARIF 2.1.0 and CVSS v3.1 scoring.
 
 ---
 
 ## 🚀 Key Features
 
-| Feature | Description |
+| Capability | Description |
 | :--- | :--- |
-| **🤖 Autonomous Fix PRs** | Automatically generates code patches and opens GitHub PRs with explanation, diff, and remediation guidance. |
+| **🤖 Autonomous Fix PRs** | Automatically generates code patches and opens GitHub PRs complete with diff, risk explanation, and remediation guidance. |
 | **🔍 Triple-Engine Scanner** | Full-spectrum analysis combining SAST, SCA, and Secret scanning in under 15 seconds. |
 | **📱 Multi-Channel Push** | Native incident delivery to WhatsApp (Cloud API), Discord, MS Teams Adaptive Cards, and SMTP Email. |
-| **🌐 Webhook-Native** | Zero-latency triggers on GitHub `push` and `pull_request` events. |
-| **🛡️ Zero-Trust Gateway** | Reverse proxy mitigation with real-time identity trust scoring and inline virtual patch blocking (<1ms). |
-| **📊 OASIS SARIF 2.1.0** | Industry-standard export compatible with GitHub Advanced Security and CI/CD pipelines. |
-| **💾 Persistent Storage** | Lightweight SQLite / PostgreSQL persistence with thread-safe WAL mode and seed data. |
-| **🎨 Modern Command Center** | Premium Next.js 15 dark-mode dashboard with real-time posture grades (A+ to F). |
+| **🌐 Webhook-Native** | Zero-latency event triggers on GitHub `push` and `pull_request` hooks. |
+| **🛡️ Zero-Trust Inline Defense** | High-performance reverse proxy mitigation with real-time identity trust scoring and sub-millisecond virtual patches. |
+| **📊 OASIS SARIF 2.1.0** | Industry-standard export compatible with GitHub Code Scanning, GitLab Security, and CI/CD pipelines. |
+| **💾 Persistent Storage** | Lightweight SQLite / PostgreSQL persistence with thread-safe WAL mode and pre-seeded demo telemetry. |
+| **🎨 Modern Command Center** | Next.js 15 dark-mode dashboard with real-time posture grades (`A+` to `F`). |
 
 ---
 
-## 🏗️ Architecture
+## 🔄 How It Works
 
-```mermaid
-flowchart TD
-    subgraph VCS["Git Source & Events"]
-        GH[GitHub / GitLab] -->|Webhook: push / PR| WH[Webhook Ingest Engine]
-    end
-
-    subgraph Core["Zerra Security Core (Python FastAPI)"]
-        WH --> RS[Repo Scanner Orchestrator]
-        RS --> SAST[AST / Regex SAST Engine]
-        RS --> SCA[Dependency CVE Auditor]
-        RS --> SEC[Entropy Secrets Detector]
-        
-        SAST & SCA & SEC --> Agg[Findings & CVSS Scorer]
-        Agg --> DB[(SQLite / PostgreSQL)]
-        
-        Agg --> FG[Automated Fix Generator]
-        FG --> GHC[GitHub API Client]
-        GHC -->|Open Branch & Pull Request| GH
-        
-        Agg --> ND[Notification Dispatcher]
-    end
-
-    subgraph Notif["Multi-Channel Incident Dispatch"]
-        ND --> WA[WhatsApp Cloud API]
-        ND --> DC[Discord Webhook]
-        ND --> TM[Microsoft Teams]
-        ND --> EM[SMTP Email]
-    end
-
-    subgraph Defense["Inline Gateway (Go Reverse Proxy)"]
-        Client[External Clients / Microservices] --> GW[Go Zero-Trust Gateway :8080]
-        GW -->|Inline Risk Check| ZT[Zero-Trust Policy Engine]
-        ZT -->|Allow / Block| Target[Protected Upstream API :8001]
-    end
-
-    subgraph UI["Management Console (Next.js 15)"]
-        Dashboard[Web Command Center :3000] --> Core
-        Dashboard --> GW
-    end
+```text
+[ Git Push / PR ] ──▶ [ Webhook Receiver ] ──▶ [ Triple-Engine Audit ]
+                                                        │
+                      ┌─────────────────────────────────┴─────────────────────────────────┐
+                      ▼                                                                   ▼
+         [ Automated Fix Generator ]                                     [ Multi-Channel Dispatcher ]
+                      │                                                                   │
+                      ▼                                                                   ▼
+         [ Open Remediation PR ]                                        [ WhatsApp • Discord • Teams • Email ]
+         (Branch: zerra/fix-xxx)                                        (Real-time CVSS Critical Alert)
 ```
 
 ---
 
 ## 🏁 Quickstart
 
-### Option 1: Docker Compose (Recommended)
+### Option 1: Docker Compose (Production Stack)
 
-Run the full Zerra platform (Python Agent, Go Gateway, Next.js UI, and PostgreSQL) with a single command:
+Launch the complete Zerra platform (Python Intelligence Engine, Go Gateway, Next.js UI, and PostgreSQL) with a single command:
 
 ```bash
 # Clone the repository
 git clone https://github.com/sjsreehari/zerra.git
 cd zerra
 
-# Configure environment variables
+# Configure environment
 cp .env.example .env
 
-# Launch all microservices
+# Launch all services
 docker-compose up -d --build
 ```
 
-Access the dashboard at **http://localhost:3000**.
+The unified management console will be available at **http://localhost:3000**.
 
 ---
 
 ### Option 2: Local Development
 
-#### 1. Start the Python Agent (Port 8000)
+#### 1. Start the Scanner Engine (Port 8000)
 
 ```bash
 cd agent
 python -m venv venv
-source venv/bin/activate  # On Windows: .\venv\Scripts\activate
+source venv/bin/activate  # Windows: .\venv\Scripts\activate
 pip install -r requirements.txt
 
 # Launch FastAPI server with SQLite persistence
@@ -140,7 +113,7 @@ npm install
 npm run dev
 ```
 
-#### 3. Start the Go Gateway (Port 8080) *(Optional for inline defense)*
+#### 3. Start the Zero-Trust Gateway (Port 8080) *(Optional)*
 
 ```bash
 cd backend
@@ -154,21 +127,60 @@ go run main.go
 Scan any local repository or remote Git URL directly from your terminal:
 
 ```bash
-# Scan current directory
+# Scan current working directory
 python -m agent.scanner.repo_scanner --path .
 
 # Scan remote GitHub repository with Deep mode
 python -m agent.scanner.repo_scanner --repo https://github.com/sjsreehari/zerra --mode deep
 
-# Export SARIF report
-python -m agent.scanner.repo_scanner --path . --format sarif --output results.sarif
+# Export findings to SARIF format
+python -m agent.scanner.repo_scanner --path . --format sarif --output zerra-results.sarif
+```
+
+---
+
+## 📦 GitHub Action Integration
+
+Add continuous security auditing and automated PRs directly to your repository workflow:
+
+```yaml
+name: Zerra Security Audit
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  security-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run Zerra Scanner
+        run: |
+          pip install -r agent/requirements.txt
+          python -m agent.scanner.repo_scanner --path . --format sarif --output results.sarif
+
+      - name: Upload SARIF to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: results.sarif
 ```
 
 ---
 
 ## 🔔 Notification Channels
 
-Configure your alerting channels in `.env`:
+Configure alerting credentials in `.env`:
 
 ### 💬 WhatsApp (Meta Cloud API)
 ```env
@@ -196,7 +208,7 @@ SMTP_PASSWORD="secret_password"
 NOTIFICATION_EMAIL_TO="security-team@yourdomain.com"
 ```
 
-Test all channels instantly from CLI or UI:
+Verify all configured channels instantly:
 ```bash
 curl -X POST http://localhost:8000/v1/notifications/test
 ```
@@ -207,8 +219,8 @@ curl -X POST http://localhost:8000/v1/notifications/test
 
 To enable automated remediation PRs:
 
-1. Create a GitHub Personal Access Token (PAT) with `repo` permissions.
-2. Export your token:
+1. Create a GitHub Personal Access Token (PAT) with `repo` scope.
+2. Export the token:
    ```bash
    export GITHUB_TOKEN="ghp_yourPersonalAccessTokenHere"
    ```
@@ -218,14 +230,14 @@ To enable automated remediation PRs:
      -H "Content-Type: application/json" \
      -d '{"url": "https://github.com/your-org/your-repo", "branch": "main", "auto_scan": true}'
    ```
-4. Point your GitHub Webhook to:
+4. Configure your repository webhook:
    ```
    Payload URL: http://your-zerra-host:8000/v1/webhooks/github
    Content type: application/json
-   Events: Just the push event & Pull requests
+   Events: Push & Pull requests
    ```
 
-When a vulnerability is detected, Zerra commits the fix to branch `zerra/fix-<id>` and submits a comprehensive Pull Request.
+When a vulnerability is detected, Zerra commits the fix to branch `zerra/fix-<id>` and opens a comprehensive Pull Request with code diffs and explanation.
 
 ---
 
@@ -237,7 +249,7 @@ When a vulnerability is detected, Zerra commits the fix to branch `zerra/fix-<id
 | `GET` | `/v1/repos` | List monitored repositories with security grades |
 | `DELETE`| `/v1/repos/{id}` | Remove repository from monitoring |
 | `POST` | `/v1/repos/{id}/scan` | Trigger immediate scan on repository |
-| `POST` | `/v1/scan` | Direct ad-hoc scan without registration |
+| `POST` | `/v1/scan` | Direct ad-hoc scan without prior registration |
 | `GET` | `/v1/scans` | List scan execution history |
 | `GET` | `/v1/scans/{id}` | Retrieve scan details and full findings |
 | `GET` | `/v1/scans/{id}/sarif` | Export OASIS SARIF 2.1.0 compliant report |
@@ -251,19 +263,19 @@ When a vulnerability is detected, Zerra commits the fix to branch `zerra/fix-<id
 
 ## 🛡️ Supported Languages & Detection Matrix
 
-| Category | Detectors | Targets |
+| Category | Detectors | Target Ecosystems |
 | :--- | :--- | :--- |
 | **SAST** | AST & High-Precision Heuristics | Python, TypeScript, JavaScript, Go, Java, Dockerfile |
-| **SCA** | CVE Vulnerability Database | npm (`package.json`), pip (`requirements.txt`), Go (`go.mod`), Maven (`pom.xml`), Cargo (`Cargo.toml`) |
-| **Secrets** | Regex & Shannon Entropy | AWS Access Keys, Stripe Secret Keys, GitHub PATs, Slack Webhooks, OpenAI Keys, Private Keys, JWTs, Generic API Tokens |
+| **SCA** | OSV.dev CVE Vulnerability Database | npm (`package.json`), pip (`requirements.txt`), Go (`go.mod`), Maven (`pom.xml`), Cargo (`Cargo.toml`) |
+| **Secrets** | Regex & Shannon Entropy Analysis | AWS Access Keys, Stripe Secret Keys, GitHub PATs, Slack Webhooks, OpenAI Keys, Private Keys, JWTs, Generic API Tokens |
 
 ---
 
 ## 🤝 Contributing
 
-We welcome contributions from the global cybersecurity and open-source community!
+We welcome contributions from the cybersecurity and open-source community!
 
-- See [CONTRIBUTING.md](CONTRIBUTING.md) for local development setup, coding guidelines, and pull request procedures.
+- Review [CONTRIBUTING.md](CONTRIBUTING.md) for local development setup, code standards, and PR workflows.
 - Please review our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ---
