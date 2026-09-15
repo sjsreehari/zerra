@@ -25,11 +25,14 @@ import {
   Check,
   RotateCcw,
   Sparkles,
+  Menu,
+  X,
 } from "lucide-react";
 
 export default function HomePage() {
   const [activeTab, setActiveTab] = useState<"bola" | "auth" | "ssrf" | "mcp">("bola");
   const [simulatedMitigation, setSimulatedMitigation] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const skillsData = {
     bola: {
@@ -114,22 +117,81 @@ export default function HomePage() {
           </nav>
 
           {/* Action Buttons */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <Link
               href="/login"
-              className="text-xs font-medium text-zinc-300 hover:text-white px-3 py-2 transition-colors"
+              className="text-xs font-medium text-zinc-300 hover:text-white px-3 py-2 transition-colors hidden sm:block"
             >
               Sign In
             </Link>
             <Link
               href="/dashboard"
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-semibold shadow-md shadow-blue-500/20 transition-all active:scale-[0.98]"
+              className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-semibold shadow-md shadow-blue-500/20 transition-all active:scale-[0.98]"
             >
               <span>Open Console</span>
               <ArrowRight size={13} />
             </Link>
+
+            {/* Mobile Hamburger Button */}
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="md:hidden p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 transition-colors"
+              aria-label="Toggle navigation menu"
+            >
+              {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+            </button>
           </div>
         </div>
+
+        {/* Mobile Navigation Drawer */}
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t border-white/[0.08] bg-[#09090b]/95 backdrop-blur-2xl px-6 py-4 space-y-3 animate-in slide-in-from-top-2 duration-150">
+            <a
+              href="#features"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block text-sm text-zinc-300 hover:text-white py-1 transition-colors"
+            >
+              Platform Features
+            </a>
+            <a
+              href="#pipeline"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block text-sm text-zinc-300 hover:text-white py-1 transition-colors"
+            >
+              Offense-to-Defense
+            </a>
+            <a
+              href="#skills"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block text-sm text-zinc-300 hover:text-white py-1 transition-colors"
+            >
+              Attack Matrix
+            </a>
+            <a
+              href="#compliance"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block text-sm text-zinc-300 hover:text-white py-1 transition-colors"
+            >
+              Compliance & SARIF
+            </a>
+            <div className="pt-2 border-t border-white/[0.08] flex items-center justify-between">
+              <Link
+                href="/login"
+                onClick={() => setMobileMenuOpen(false)}
+                className="text-xs text-zinc-400 hover:text-white font-medium"
+              >
+                Sign In
+              </Link>
+              <Link
+                href="/dashboard/security"
+                onClick={() => setMobileMenuOpen(false)}
+                className="text-xs text-blue-400 hover:text-blue-300 font-semibold"
+              >
+                AI Pentest Studio →
+              </Link>
+            </div>
+          </div>
+        )}
       </header>
 
       {/* Hero Section */}
