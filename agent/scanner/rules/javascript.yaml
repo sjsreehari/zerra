@@ -1,0 +1,154 @@
+rules:
+  # ─── XSS ────────────────────────────────────────────
+  - id: zerra/js/xss-innerhtml
+    title: "XSS via innerHTML"
+    description: "Setting innerHTML with user-controlled data can lead to Cross-Site Scripting."
+    severity: high
+    pattern: '\.innerHTML\s*='
+    languages: [javascript, typescript]
+    cwe_id: "CWE-79"
+    owasp_category: "A03:2021 Injection"
+    fix_hint: "Use textContent for text, or sanitize HTML with DOMPurify before inserting."
+    confidence: 0.7
+
+  - id: zerra/js/xss-document-write
+    title: "XSS via document.write()"
+    description: "document.write() with dynamic content can introduce XSS vulnerabilities."
+    severity: high
+    pattern: 'document\.\s*write\s*\('
+    languages: [javascript, typescript]
+    cwe_id: "CWE-79"
+    owasp_category: "A03:2021 Injection"
+    fix_hint: "Avoid document.write(). Use DOM manipulation methods instead."
+    confidence: 0.75
+
+  - id: zerra/js/xss-dangerously-set
+    title: "React dangerouslySetInnerHTML"
+    description: "dangerouslySetInnerHTML bypasses React's XSS protections. Ensure content is sanitized."
+    severity: medium
+    pattern: 'dangerouslySetInnerHTML'
+    languages: [javascript, typescript]
+    cwe_id: "CWE-79"
+    fix_hint: "Sanitize HTML with DOMPurify before using dangerouslySetInnerHTML."
+    confidence: 0.65
+
+  # ─── Prototype Pollution ───────────────────────────
+  - id: zerra/js/prototype-pollution
+    title: "Prototype Pollution Risk"
+    description: "Direct property assignment using bracket notation with user input can lead to prototype pollution."
+    severity: high
+    pattern: '\[(?:key|prop|attr|name|field)\]\s*='
+    languages: [javascript, typescript]
+    cwe_id: "CWE-1321"
+    fix_hint: "Validate keys against a whitelist. Use Object.create(null) for dictionaries."
+    confidence: 0.5
+
+  # ─── Eval / Code Injection ─────────────────────────
+  - id: zerra/js/eval-usage
+    title: "Dangerous eval() Usage"
+    description: "eval() executes arbitrary JavaScript. Never use with user-controlled input."
+    severity: critical
+    pattern: '\beval\s*\('
+    languages: [javascript, typescript]
+    cwe_id: "CWE-95"
+    owasp_category: "A03:2021 Injection"
+    fix_hint: "Use JSON.parse() for data, or Function constructor with caution."
+    confidence: 0.75
+
+  - id: zerra/js/new-function
+    title: "Dynamic Code via new Function()"
+    description: "new Function() from user input enables code injection."
+    severity: high
+    pattern: 'new\s+Function\s*\('
+    languages: [javascript, typescript]
+    cwe_id: "CWE-95"
+    fix_hint: "Avoid dynamic code generation. Use structured logic instead."
+    confidence: 0.7
+
+  # ─── SQL Injection (Node.js) ───────────────────────
+  - id: zerra/js/sql-injection-template
+    title: "SQL Injection via Template Literal"
+    description: "SQL query built with template literals may include unsanitized user input."
+    severity: critical
+    pattern: '(?:query|execute|raw)\s*\(\s*`(?:SELECT|INSERT|UPDATE|DELETE|DROP)'
+    languages: [javascript, typescript]
+    cwe_id: "CWE-89"
+    owasp_category: "A03:2021 Injection"
+    fix_hint: "Use parameterized queries with ? or $1 placeholders."
+    confidence: 0.85
+
+  - id: zerra/js/sql-injection-concat
+    title: "SQL Injection via Concatenation"
+    description: "SQL query built by string concatenation with variables."
+    severity: high
+    pattern: '(?:query|execute)\s*\(\s*["\x27](?:SELECT|INSERT|UPDATE|DELETE).*\+\s*'
+    languages: [javascript, typescript]
+    cwe_id: "CWE-89"
+    confidence: 0.8
+
+  # ─── Command Injection ─────────────────────────────
+  - id: zerra/js/command-injection-exec
+    title: "OS Command Injection (child_process)"
+    description: "child_process.exec() runs shell commands. User input in the command string enables injection."
+    severity: critical
+    pattern: '(?:child_process|require\s*\(\s*["\x27]child_process["\x27]\s*\))\s*\.\s*exec\s*\('
+    languages: [javascript, typescript]
+    cwe_id: "CWE-78"
+    fix_hint: "Use child_process.execFile() or spawn() with an arguments array instead."
+    confidence: 0.8
+
+  # ─── Path Traversal ───────────────────────────────
+  - id: zerra/js/path-traversal
+    title: "Path Traversal Risk"
+    description: "File path constructed from user input without validation. May allow reading arbitrary files."
+    severity: high
+    pattern: '(?:readFile|readFileSync|createReadStream|writeFile)\s*\(\s*(?:`|.*\+|.*req\.|.*params)'
+    languages: [javascript, typescript]
+    cwe_id: "CWE-22"
+    owasp_category: "A01:2021 Broken Access Control"
+    fix_hint: "Use path.resolve() and verify the result is within the allowed directory."
+    confidence: 0.65
+
+  # ─── Insecure Configuration ────────────────────────
+  - id: zerra/js/cors-wildcard
+    title: "CORS Wildcard Origin"
+    description: "Setting Access-Control-Allow-Origin to '*' allows any origin to access the API."
+    severity: medium
+    pattern: "(?:Access-Control-Allow-Origin|origin).*['\"]\\*['\"]"
+    languages: [javascript, typescript]
+    cwe_id: "CWE-942"
+    fix_hint: "Restrict allowed origins to specific trusted domains."
+    confidence: 0.7
+
+  - id: zerra/js/helmet-missing
+    title: "Missing Security Headers (No Helmet)"
+    description: "Express app without helmet middleware lacks important security headers."
+    severity: low
+    pattern: 'app\s*=\s*express\s*\(\)'
+    negative_pattern: 'helmet\s*\('
+    languages: [javascript, typescript]
+    cwe_id: "CWE-693"
+    fix_hint: "Add helmet middleware: app.use(helmet())"
+    confidence: 0.5
+
+  # ─── Sensitive Data Exposure ───────────────────────
+  - id: zerra/js/console-log-sensitive
+    title: "Sensitive Data in console.log"
+    description: "Logging sensitive data (passwords, tokens, keys) to console in production."
+    severity: medium
+    pattern: 'console\.\s*log\s*\(.*(?:password|token|secret|key|credential|auth)'
+    languages: [javascript, typescript]
+    cwe_id: "CWE-532"
+    fix_hint: "Remove sensitive data from console logs. Use a proper logging framework with redaction."
+    confidence: 0.5
+
+  # ─── Insecure Randomness ──────────────────────────
+  - id: zerra/js/math-random-security
+    title: "Insecure Randomness (Math.random)"
+    description: "Math.random() is not cryptographically secure. Do not use for tokens, keys, or security-sensitive operations."
+    severity: medium
+    pattern: 'Math\.\s*random\s*\(\)'
+    languages: [javascript, typescript]
+    cwe_id: "CWE-338"
+    fix_hint: "Use crypto.randomBytes() or crypto.getRandomValues() for security-sensitive random values."
+    confidence: 0.4
