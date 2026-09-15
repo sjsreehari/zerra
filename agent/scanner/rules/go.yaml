@@ -1,0 +1,108 @@
+rules:
+  # ─── SQL Injection ───────────────────────────────────
+  - id: zerra/go/sql-injection-sprintf
+    title: "SQL Injection via fmt.Sprintf"
+    description: "SQL query built using fmt.Sprintf with user input."
+    severity: critical
+    pattern: 'fmt\.\s*Sprintf\s*\(\s*"(?:SELECT|INSERT|UPDATE|DELETE|DROP)'
+    languages: [go]
+    cwe_id: "CWE-89"
+    owasp_category: "A03:2021 Injection"
+    fix_hint: "Use parameterized queries with database/sql: db.Query('SELECT * FROM users WHERE id = $1', id)"
+    confidence: 0.85
+
+  - id: zerra/go/sql-injection-concat
+    title: "SQL Injection via String Concatenation"
+    description: "SQL query constructed by concatenating strings."
+    severity: high
+    pattern: '(?:Query|Exec|QueryRow)\s*\(\s*(?:"(?:SELECT|INSERT|UPDATE|DELETE)|.*\+\s*)'
+    languages: [go]
+    cwe_id: "CWE-89"
+    confidence: 0.75
+
+  # ─── Command Injection ─────────────────────────────
+  - id: zerra/go/command-injection
+    title: "OS Command Injection"
+    description: "exec.Command with user-controlled input can lead to command injection."
+    severity: high
+    pattern: 'exec\.\s*Command\s*\(\s*(?:.*\+|.*fmt\.\s*Sprintf)'
+    languages: [go]
+    cwe_id: "CWE-78"
+    fix_hint: "Validate and sanitize command arguments. Avoid shell expansion."
+    confidence: 0.7
+
+  # ─── Path Traversal ───────────────────────────────
+  - id: zerra/go/path-traversal
+    title: "Path Traversal Risk"
+    description: "File path from user input without filepath.Clean validation."
+    severity: high
+    pattern: 'os\.\s*(?:Open|ReadFile|Create|WriteFile)\s*\(\s*(?:.*\+|.*fmt\.\s*Sprintf|.*filepath\.Join.*req)'
+    languages: [go]
+    cwe_id: "CWE-22"
+    fix_hint: "Use filepath.Clean() and validate the path is within the expected directory."
+    confidence: 0.6
+
+  # ─── Weak Crypto ──────────────────────────────────
+  - id: zerra/go/weak-hash-md5
+    title: "Weak Hash Algorithm (MD5)"
+    description: "MD5 is cryptographically broken. Use SHA-256 or stronger."
+    severity: medium
+    pattern: 'md5\.\s*(?:New|Sum)\s*\('
+    languages: [go]
+    cwe_id: "CWE-328"
+    fix_hint: "Use crypto/sha256 instead of crypto/md5."
+    confidence: 0.7
+
+  - id: zerra/go/weak-hash-sha1
+    title: "Weak Hash Algorithm (SHA1)"
+    description: "SHA-1 has known collision attacks."
+    severity: medium
+    pattern: 'sha1\.\s*(?:New|Sum)\s*\('
+    languages: [go]
+    cwe_id: "CWE-328"
+    confidence: 0.65
+
+  # ─── SSRF ─────────────────────────────────────────
+  - id: zerra/go/ssrf
+    title: "Potential SSRF"
+    description: "HTTP request URL constructed from user-controlled input."
+    severity: high
+    pattern: 'http\.\s*(?:Get|Post|NewRequest)\s*\(\s*(?:.*\+|.*fmt\.\s*Sprintf)'
+    languages: [go]
+    cwe_id: "CWE-918"
+    owasp_category: "A10:2021 SSRF"
+    fix_hint: "Validate and allowlist destination URLs."
+    confidence: 0.65
+
+  # ─── Insecure TLS ─────────────────────────────────
+  - id: zerra/go/insecure-tls
+    title: "TLS Certificate Verification Disabled"
+    description: "InsecureSkipVerify=true disables TLS certificate validation, enabling MITM attacks."
+    severity: high
+    pattern: 'InsecureSkipVerify\s*:\s*true'
+    languages: [go]
+    cwe_id: "CWE-295"
+    fix_hint: "Remove InsecureSkipVerify or set it to false. Use proper CA certificates."
+    confidence: 0.9
+
+  # ─── Hardcoded JWT Secret ─────────────────────────
+  - id: zerra/go/hardcoded-jwt-secret
+    title: "Hardcoded JWT Secret"
+    description: "JWT signing key appears to be hardcoded."
+    severity: high
+    pattern: '(?:signingKey|jwtSecret|secretKey)\s*(?:=|:=)\s*\[\]byte\s*\(\s*"'
+    languages: [go]
+    cwe_id: "CWE-798"
+    fix_hint: "Load JWT secrets from environment variables or a secrets manager."
+    confidence: 0.8
+
+  # ─── Error Handling ───────────────────────────────
+  - id: zerra/go/error-ignored
+    title: "Error Return Value Ignored"
+    description: "Go error return value is discarded. This can mask failures and security issues."
+    severity: low
+    pattern: '^\s*[a-zA-Z_]\w*\s*,\s*_\s*(?::)?=\s*'
+    languages: [go]
+    cwe_id: "CWE-754"
+    fix_hint: "Always check error return values."
+    confidence: 0.3
