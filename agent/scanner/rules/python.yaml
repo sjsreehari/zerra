@@ -1,0 +1,168 @@
+rules:
+  # ─── SQL Injection ───────────────────────────────────
+  - id: zerra/python/sql-injection-fstring
+    title: "SQL Injection via f-string"
+    description: "SQL query constructed using an f-string with user-controlled input. Use parameterized queries instead."
+    severity: critical
+    pattern: '(?:execute|executemany|cursor\.execute)\s*\(\s*f["\x27]'
+    languages: [python]
+    cwe_id: "CWE-89"
+    owasp_category: "A03:2021 Injection"
+    fix_hint: "Use parameterized queries: cursor.execute('SELECT * FROM users WHERE id = %s', (user_id,))"
+    confidence: 0.9
+
+  - id: zerra/python/sql-injection-format
+    title: "SQL Injection via .format()"
+    description: "SQL query built using str.format() with potentially user-controlled values."
+    severity: critical
+    pattern: '(?:execute|raw|RawSQL)\s*\(.*\.format\s*\('
+    languages: [python]
+    cwe_id: "CWE-89"
+    owasp_category: "A03:2021 Injection"
+    fix_hint: "Use parameterized queries instead of string formatting."
+    confidence: 0.85
+
+  - id: zerra/python/sql-injection-concat
+    title: "SQL Injection via String Concatenation"
+    description: "SQL query constructed by concatenating strings, likely with user input."
+    severity: high
+    pattern: '(?:execute|cursor\.execute)\s*\(\s*["\x27](?:SELECT|INSERT|UPDATE|DELETE|DROP).*\+\s*'
+    languages: [python]
+    cwe_id: "CWE-89"
+    owasp_category: "A03:2021 Injection"
+    confidence: 0.8
+
+  # ─── Command Injection ──────────────────────────────
+  - id: zerra/python/command-injection-os
+    title: "OS Command Injection"
+    description: "User-controlled input passed to os.system() or os.popen(). Use subprocess with shell=False instead."
+    severity: critical
+    pattern: 'os\.\s*(?:system|popen)\s*\('
+    languages: [python]
+    cwe_id: "CWE-78"
+    owasp_category: "A03:2021 Injection"
+    fix_hint: "Use subprocess.run() with shell=False and a list of arguments."
+    confidence: 0.85
+
+  - id: zerra/python/command-injection-subprocess-shell
+    title: "Subprocess with shell=True"
+    description: "subprocess called with shell=True is vulnerable to command injection if any argument is user-controlled."
+    severity: high
+    pattern: 'subprocess\.\s*(?:call|run|Popen|check_output|check_call)\s*\(.*shell\s*=\s*True'
+    languages: [python]
+    cwe_id: "CWE-78"
+    owasp_category: "A03:2021 Injection"
+    fix_hint: "Use shell=False and pass arguments as a list."
+    confidence: 0.75
+
+  # ─── SSRF ───────────────────────────────────────────
+  - id: zerra/python/ssrf-requests
+    title: "Potential SSRF via requests"
+    description: "URL for requests.get/post may be constructed from user input, allowing SSRF attacks."
+    severity: high
+    pattern: 'requests\.\s*(?:get|post|put|delete|patch|head)\s*\(\s*(?:f["\x27]|.*\+|.*\.format|.*%)'
+    languages: [python]
+    cwe_id: "CWE-918"
+    owasp_category: "A10:2021 SSRF"
+    fix_hint: "Validate and allowlist destination URLs. Block internal/private IP ranges."
+    confidence: 0.7
+
+  # ─── Insecure Deserialization ───────────────────────
+  - id: zerra/python/pickle-load
+    title: "Insecure Deserialization (pickle)"
+    description: "pickle.load/loads on untrusted data can execute arbitrary code."
+    severity: critical
+    pattern: 'pickle\.\s*(?:load|loads)\s*\('
+    languages: [python]
+    cwe_id: "CWE-502"
+    owasp_category: "A08:2021 Integrity Failures"
+    fix_hint: "Never unpickle data from untrusted sources. Use JSON or MessagePack instead."
+    confidence: 0.85
+
+  - id: zerra/python/yaml-unsafe-load
+    title: "Unsafe YAML Loading"
+    description: "yaml.load() without Loader=SafeLoader can execute arbitrary Python objects."
+    severity: high
+    pattern: 'yaml\.\s*load\s*\([^)]*(?<!Loader\s*=\s*SafeLoader)\)'
+    negative_pattern: 'yaml\.safe_load'
+    languages: [python]
+    cwe_id: "CWE-502"
+    fix_hint: "Use yaml.safe_load() or yaml.load(data, Loader=yaml.SafeLoader)."
+    confidence: 0.8
+
+  # ─── Path Traversal ────────────────────────────────
+  - id: zerra/python/path-traversal
+    title: "Path Traversal"
+    description: "File path constructed from user input without sanitization. May allow reading arbitrary files."
+    severity: high
+    pattern: 'open\s*\(\s*(?:f["\x27]|.*\+|.*\.format|.*%\s*\()'
+    languages: [python]
+    cwe_id: "CWE-22"
+    owasp_category: "A01:2021 Broken Access Control"
+    fix_hint: "Use os.path.realpath() and validate the resolved path is within the expected directory."
+    confidence: 0.6
+
+  # ─── Hardcoded Secrets ─────────────────────────────
+  - id: zerra/python/hardcoded-password
+    title: "Hardcoded Password"
+    description: "Password appears to be hardcoded in source code."
+    severity: high
+    pattern: '(?:password|passwd|pwd|secret)\s*=\s*["\x27][^"\x27]{4,}["\x27]'
+    languages: [python]
+    cwe_id: "CWE-798"
+    fix_hint: "Store secrets in environment variables or a secrets manager."
+    confidence: 0.6
+
+  # ─── Debug / Development ───────────────────────────
+  - id: zerra/python/debug-mode
+    title: "Debug Mode Enabled"
+    description: "Application running with debug=True in production can expose sensitive information."
+    severity: medium
+    pattern: '(?:app\.run|DEBUG)\s*(?:=|\(.*debug\s*=)\s*True'
+    languages: [python]
+    cwe_id: "CWE-489"
+    fix_hint: "Set debug=False in production. Use environment variables to control debug mode."
+    confidence: 0.7
+
+  # ─── Weak Cryptography ────────────────────────────
+  - id: zerra/python/weak-hash-md5
+    title: "Weak Hash Algorithm (MD5)"
+    description: "MD5 is cryptographically broken. Use SHA-256 or stronger for security-sensitive hashing."
+    severity: medium
+    pattern: 'hashlib\.\s*md5\s*\('
+    languages: [python]
+    cwe_id: "CWE-328"
+    fix_hint: "Use hashlib.sha256() or hashlib.sha3_256() instead."
+    confidence: 0.75
+
+  - id: zerra/python/weak-hash-sha1
+    title: "Weak Hash Algorithm (SHA1)"
+    description: "SHA-1 has known collision attacks. Use SHA-256 or stronger."
+    severity: medium
+    pattern: 'hashlib\.\s*sha1\s*\('
+    languages: [python]
+    cwe_id: "CWE-328"
+    fix_hint: "Use hashlib.sha256() or hashlib.sha3_256() instead."
+    confidence: 0.7
+
+  # ─── Eval / Exec ──────────────────────────────────
+  - id: zerra/python/eval-usage
+    title: "Dangerous eval() Usage"
+    description: "eval() executes arbitrary code. Never use with user-controlled input."
+    severity: critical
+    pattern: '\beval\s*\('
+    languages: [python]
+    cwe_id: "CWE-95"
+    owasp_category: "A03:2021 Injection"
+    fix_hint: "Use ast.literal_eval() for safe evaluation of literals, or restructure logic to avoid eval."
+    confidence: 0.7
+
+  - id: zerra/python/exec-usage
+    title: "Dangerous exec() Usage"
+    description: "exec() executes arbitrary code strings. Extremely dangerous with user input."
+    severity: critical
+    pattern: '\bexec\s*\('
+    languages: [python]
+    cwe_id: "CWE-95"
+    fix_hint: "Avoid exec(). Use structured data and function dispatch instead."
+    confidence: 0.65
