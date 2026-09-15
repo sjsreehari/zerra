@@ -615,4 +615,383 @@ def export_latest_audit():
     return export_audit_log(latest_id)
 
 
+# ──────────────────────────────────────────────────────────
+# Zerra v2: Repository Scanner & Notifications API
+# ──────────────────────────────────────────────────────────
 
+from agent.scanner.models import ScanConfig, ScanMode, ScanResult as ScanResultModel, ScanStatus
+from agent.scanner.repo_scanner import RepoScanner
+from agent.integrations.webhook_handler import parse_webhook, format_scan_comment
+from agent.integrations.fix_generator import generate_fix, generate_pr_body
+from agent.integrations.github_client import GitHubClient
+from agent.notifications.dispatcher import NotificationDispatcher, NotificationConfig
+from agent.db.database import get_db
+
+_scanner = RepoScanner()
+_notification_dispatcher: NotificationDispatcher | None = None
+
+
+def _get_notifier() -> NotificationDispatcher:
+    global _notification_dispatcher
+    if _notification_dispatcher is None:
+        _notification_dispatcher = NotificationDispatcher()
+    return _notification_dispatcher
+
+
+class RepoCreate(BaseModel):
+    url: str
+    branch: str = "main"
+    auto_scan: bool = True
+    scan_mode: str = "standard"
+    github_token: str | None = None
+
+
+class ScanTrigger(BaseModel):
+    mode: str = "standard"
+    branch: str | None = None
+
+
+class CreatePRRequest(BaseModel):
+    github_token: str | None = None
+    branch_name: str | None = None
+    commit_message: str | None = None
+
+
+# ── Repository Management ────────────────────────────
+
+@app.post("/v1/repos")
+def register_repo(body: RepoCreate):
+    """Register a repository for monitoring in SQLite."""
+    db = get_db()
+    saved = db.save_repo(body.model_dump())
+    return {k: v for k, v in saved.items() if k != "github_token"}
+
+
+@app.get("/v1/repos")
+def list_repos():
+    """List all monitored repositories with their latest scan stats."""
+    db = get_db()
+    repos = db.list_repos()
+    result = []
+    for repo in repos:
+        repo_data = {k: v for k, v in repo.items() if k != "github_token"}
+        if repo.get("last_scan_id"):
+            scan = db.get_scan(repo["last_scan_id"])
+            if scan:
+                repo_data["last_scan"] = {
+                    "id": scan.get("id"),
+                    "status": scan.get("status"),
+                    "security_score": scan.get("security_score"),
+                    "findings_count": len(scan.get("findings", [])),
+                    "critical_count": scan.get("critical_count", 0),
+                    "high_count": scan.get("high_count", 0),
+                    "completed_at": scan.get("completed_at"),
+                }
+        result.append(repo_data)
+    return result
+
+
+@app.get("/v1/repos/{repo_id}")
+def get_repo(repo_id: str):
+    """Get details of a specific repository."""
+    db = get_db()
+    repo = db.get_repo(repo_id)
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repository not found")
+    return {k: v for k, v in repo.items() if k != "github_token"}
+
+
+@app.delete("/v1/repos/{repo_id}")
+def remove_repo(repo_id: str):
+    """Remove a repository from monitoring."""
+    db = get_db()
+    if not db.delete_repo(repo_id):
+        raise HTTPException(status_code=404, detail="Repository not found")
+    return {"status": "deleted", "id": repo_id}
+
+
+# ── Scan Operations ─────────────────────────────────
+
+@app.post("/v1/repos/{repo_id}/scan")
+async def trigger_scan(repo_id: str, body: ScanTrigger | None = None):
+    """Trigger a scan for a registered repository."""
+    db = get_db()
+    repo = db.get_repo(repo_id)
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repository not found")
+
+    mode_str = (body.mode if body else repo.get("scan_mode", "standard"))
+    branch = (body.branch if body and body.branch else repo.get("branch", "main"))
+    config = ScanConfig(
+        repo_url=repo["url"],
+        branch=branch,
+        mode=ScanMode(mode_str),
+        github_token=repo.get("github_token"),
+    )
+    result = await _scanner.scan_async(config)
+    db.save_scan(result)
+    db.update_repo_last_scan(repo_id, result.id)
+
+    try:
+        _get_notifier().notify_scan_complete(result)
+    except Exception:
+        pass
+
+    return {
+        "scan_id": result.id,
+        "status": result.status.value,
+        "security_score": result.security_score,
+        "findings_count": len(result.findings),
+        "critical_count": result.critical_count,
+        "high_count": result.high_count,
+        "medium_count": result.medium_count,
+        "low_count": result.low_count,
+        "duration_seconds": result.duration_seconds,
+    }
+
+
+@app.post("/v1/scan")
+async def scan_repo_directly(config: ScanConfig):
+    """Scan a repository directly without prior registration."""
+    db = get_db()
+    result = await _scanner.scan_async(config)
+    db.save_scan(result)
+    try:
+        _get_notifier().notify_scan_complete(result)
+    except Exception:
+        pass
+    return result
+
+
+@app.get("/v1/scans")
+def list_scans(limit: int = 50):
+    """List all past scan runs."""
+    db = get_db()
+    return db.list_scans(limit=limit)
+
+
+@app.get("/v1/scans/{scan_id}")
+def get_scan(scan_id: str):
+    """Get full scan result with all findings."""
+    db = get_db()
+    scan = db.get_scan(scan_id)
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan not found")
+    return scan
+
+
+@app.get("/v1/scans/{scan_id}/findings")
+def get_scan_findings(scan_id: str, severity: str | None = None):
+    """Get findings for a specific scan."""
+    db = get_db()
+    return db.list_findings(severity=severity, scan_id=scan_id)
+
+
+@app.get("/v1/scans/{scan_id}/sarif")
+def export_scan_sarif(scan_id: str):
+    """Export scan results in OASIS SARIF 2.1.0 standard format."""
+    db = get_db()
+    scan = db.get_scan(scan_id)
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan not found")
+
+    sarif: dict = {
+        "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+        "version": "2.1.0",
+        "runs": [{
+            "tool": {
+                "driver": {
+                    "name": "Zerra",
+                    "version": "2.0.0",
+                    "informationUri": "https://github.com/sjsreehari/zerra",
+                    "rules": [],
+                }
+            },
+            "results": [],
+        }],
+    }
+    rules_seen: dict[str, int] = {}
+    run = sarif["runs"][0]
+    for finding in scan.get("findings", []):
+        rid = finding.get("rule_id") or finding.get("id") or "SEC-RULE"
+        if rid not in rules_seen:
+            rules_seen[rid] = len(run["tool"]["driver"]["rules"])
+            run["tool"]["driver"]["rules"].append({
+                "id": rid,
+                "shortDescription": {"text": finding.get("title", "Security Finding")},
+                "fullDescription": {"text": (finding.get("description") or "")[:1000]},
+                "properties": {"security-severity": str(finding.get("cvss_score") or "5.0")},
+            })
+        entry: dict = {
+            "ruleId": rid,
+            "ruleIndex": rules_seen[rid],
+            "level": {
+                "critical": "error",
+                "high": "error",
+                "medium": "warning",
+                "low": "note",
+                "info": "note",
+            }.get(str(finding.get("severity", "medium")).lower(), "warning"),
+            "message": {"text": (finding.get("description") or "")[:500]},
+            "locations": [],
+        }
+        if finding.get("file_path"):
+            entry["locations"].append({
+                "physicalLocation": {
+                    "artifactLocation": {"uri": finding["file_path"]},
+                    "region": {
+                        "startLine": finding.get("line_start") or 1,
+                        "endLine": finding.get("line_end") or finding.get("line_start") or 1,
+                    },
+                }
+            })
+        run["results"].append(entry)
+    return sarif
+
+
+# ── Webhooks & Auto-Scan ────────────────────────────
+
+@app.post("/v1/webhooks/github")
+async def github_webhook(request_body: dict):
+    """Receive and process GitHub push/PR webhook events with auto-scan."""
+    db = get_db()
+    events = parse_webhook("push", request_body)
+    results = []
+    monitored_repos = db.list_repos()
+
+    for event in events:
+        for repo in monitored_repos:
+            if event.repo_full_name in repo["url"] or repo["url"] in event.repo_url:
+                config = ScanConfig(
+                    repo_url=event.repo_url,
+                    branch=event.branch or repo.get("branch", "main"),
+                    commit_sha=event.commit_sha,
+                    mode=ScanMode(repo.get("scan_mode", "standard")),
+                    github_token=repo.get("github_token"),
+                )
+                scan_result = await _scanner.scan_async(config)
+                db.save_scan(scan_result)
+                db.update_repo_last_scan(repo["id"], scan_result.id)
+
+                try:
+                    _get_notifier().notify_scan_complete(scan_result)
+                except Exception:
+                    pass
+
+                results.append({
+                    "repo": event.repo_full_name,
+                    "scan_id": scan_result.id,
+                    "grade": scan_result.security_score,
+                    "findings": len(scan_result.findings),
+                })
+                break
+
+    return {"processed": len(results), "results": results}
+
+
+# ── Findings Explorer ───────────────────────────────
+
+@app.get("/v1/findings")
+def list_all_findings(severity: str | None = None, limit: int = 100):
+    """List findings across all scans with optional severity filter."""
+    db = get_db()
+    return db.list_findings(severity=severity, limit=limit)
+
+
+# ── Auto-PR Generation ──────────────────────────────
+
+@app.post("/v1/findings/{finding_id}/create-pr")
+def create_pr_for_finding(finding_id: str, body: CreatePRRequest | None = None):
+    """Automatically generate a fix PR on GitHub for a specific security finding."""
+    db = get_db()
+    findings = db.list_findings(limit=1000)
+    target_finding = next((f for f in findings if f["id"] == finding_id), None)
+    if not target_finding:
+        raise HTTPException(status_code=404, detail="Finding not found")
+
+    fix = target_finding.get("fix_suggestion")
+    if not fix:
+        raise HTTPException(status_code=400, detail="No automatic fix suggestion available for this finding")
+
+    token = (body.github_token if body and body.github_token else os.environ.get("GITHUB_TOKEN"))
+    if not token:
+        # Return simulated PR response for showcase/demo environments
+        return {
+            "status": "simulated",
+            "message": "PR created in dry-run mode (set GITHUB_TOKEN to open actual GitHub PR)",
+            "pr_url": f"{target_finding['repo_url']}/pull/42",
+            "branch": f"zerra/fix-{finding_id}",
+            "patch": fix,
+            "title": f"fix(security): resolve {target_finding.get('title', 'vulnerability')}",
+        }
+
+    try:
+        # Extract owner/repo
+        repo_url = target_finding["repo_url"]
+        parts = repo_url.rstrip("/").split("/")
+        owner, repo_name = parts[-2], parts[-1]
+
+        gh = GitHubClient(token)
+        branch_name = (body.branch_name if body and body.branch_name else f"zerra/fix-{finding_id[:8]}")
+
+        # Get base branch SHA
+        base_sha = gh.get_ref(owner, repo_name, "main")
+        gh.create_branch(owner, repo_name, branch_name, base_sha)
+
+        # Commit fix
+        commit_msg = (body.commit_message if body and body.commit_message else f"fix(security): resolve {target_finding.get('title')}")
+        gh.commit_file(
+            owner=owner,
+            repo=repo_name,
+            path=fix["file_path"],
+            content=fix["fixed_code"],
+            message=commit_msg,
+            branch=branch_name,
+        )
+
+        pr_body = (
+            f"## Zerra Autonomous Security Remediation\n\n"
+            f"**Finding:** {target_finding.get('title')}\n"
+            f"**Severity:** `{target_finding.get('severity')}` | **CWE:** `{target_finding.get('cwe_id', 'N/A')}`\n\n"
+            f"### Explanation\n{fix.get('explanation')}\n\n"
+            f"---\n*Generated automatically by [Zerra](https://github.com/sjsreehari/zerra)*"
+        )
+        pr = gh.create_pull_request(
+            owner=owner,
+            repo=repo_name,
+            title=commit_msg,
+            body=pr_body,
+            head=branch_name,
+            base="main",
+        )
+        return {"status": "created", "pr": pr}
+    except Exception as e:
+        logger.exception("Failed to create PR")
+        raise HTTPException(status_code=500, detail=f"Failed to create PR: {str(e)}")
+
+
+# ── Notifications & Integrations ────────────────────
+
+@app.post("/v1/notifications/test")
+def test_notifications():
+    """Test all configured notification channels (WhatsApp, Discord, Teams, Email)."""
+    notifier = _get_notifier()
+    results = notifier.test_all_channels()
+    return {"channels": notifier.active_channels, "results": results}
+
+
+@app.get("/v1/notifications/channels")
+def list_notification_channels():
+    """List currently configured notification channels."""
+    return {"channels": _get_notifier().active_channels}
+
+
+# ── Dashboard Unified Stats ─────────────────────────
+
+@app.get("/v1/dashboard/stats")
+def dashboard_stats():
+    """Aggregated statistics for the unified security command center."""
+    db = get_db()
+    stats = db.get_stats()
+    stats["active_channels"] = _get_notifier().active_channels
+    return stats

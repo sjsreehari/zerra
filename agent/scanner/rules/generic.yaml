@@ -1,0 +1,91 @@
+rules:
+  # ─── Misconfiguration ─────────────────────────────
+  - id: zerra/generic/dockerfile-root
+    title: "Container Running as Root"
+    description: "Dockerfile does not specify a non-root USER. Containers running as root increase blast radius."
+    severity: medium
+    pattern: '^FROM\s+'
+    negative_pattern: '^\s*USER\s+\S+'
+    languages: [docker]
+    file_patterns: ["Dockerfile", "*.dockerfile"]
+    cwe_id: "CWE-250"
+    fix_hint: "Add 'USER nonroot' after installing dependencies."
+    confidence: 0.5
+
+  - id: zerra/generic/dockerfile-latest
+    title: "Docker Image Using :latest Tag"
+    description: "Using :latest tag makes builds non-reproducible. Pin to a specific version."
+    severity: low
+    pattern: 'FROM\s+\S+:latest'
+    languages: [docker]
+    file_patterns: ["Dockerfile", "*.dockerfile"]
+    cwe_id: "CWE-1104"
+    fix_hint: "Pin the base image to a specific version tag."
+    confidence: 0.7
+
+  # ─── YAML / Config ────────────────────────────────
+  - id: zerra/generic/yaml-password
+    title: "Password in YAML Config"
+    description: "A password appears to be hardcoded in a YAML configuration file."
+    severity: high
+    pattern: '(?:password|passwd|secret|api_key|apikey):\s*["\x27]?[^\s#"{][^\s#"]+["\x27]?'
+    languages: [yaml]
+    cwe_id: "CWE-798"
+    fix_hint: "Use environment variable references or a secrets manager."
+    confidence: 0.6
+
+  # ─── HTML / Templates ─────────────────────────────
+  - id: zerra/generic/html-form-no-csrf
+    title: "HTML Form Without CSRF Token"
+    description: "HTML form without a CSRF token field may be vulnerable to Cross-Site Request Forgery."
+    severity: medium
+    pattern: '<form[^>]*method\s*=\s*["\x27]post["\x27]'
+    negative_pattern: 'csrf|_token|csrfmiddlewaretoken'
+    languages: [html]
+    cwe_id: "CWE-352"
+    owasp_category: "A01:2021 Broken Access Control"
+    fix_hint: "Include a CSRF token in all POST forms."
+    confidence: 0.5
+
+  # ─── SQL Files ────────────────────────────────────
+  - id: zerra/generic/sql-grant-all
+    title: "Overly Permissive SQL GRANT"
+    description: "GRANT ALL PRIVILEGES is overly permissive. Follow least-privilege principle."
+    severity: medium
+    pattern: 'GRANT\s+ALL\s+PRIVILEGES'
+    languages: [sql]
+    cwe_id: "CWE-250"
+    fix_hint: "Grant only the specific privileges needed."
+    confidence: 0.75
+
+  # ─── Terraform / IaC ──────────────────────────────
+  - id: zerra/generic/terraform-public-sg
+    title: "Security Group Open to 0.0.0.0/0"
+    description: "AWS security group allows unrestricted inbound access."
+    severity: high
+    pattern: 'cidr_blocks\s*=\s*\[\s*"0\.0\.0\.0/0"\s*\]'
+    languages: [terraform]
+    cwe_id: "CWE-284"
+    fix_hint: "Restrict CIDR blocks to specific IP ranges."
+    confidence: 0.85
+
+  - id: zerra/generic/terraform-public-s3
+    title: "S3 Bucket Publicly Accessible"
+    description: "S3 bucket ACL set to public-read or public-read-write."
+    severity: critical
+    pattern: 'acl\s*=\s*"public-(?:read|read-write)"'
+    languages: [terraform]
+    cwe_id: "CWE-732"
+    fix_hint: "Set ACL to 'private' and use S3 bucket policies for access control."
+    confidence: 0.9
+
+  # ─── Shell Scripts ────────────────────────────────
+  - id: zerra/generic/shell-curl-pipe-bash
+    title: "Curl Pipe to Bash"
+    description: "Piping curl output directly to bash/sh is dangerous — the script could be tampered with."
+    severity: medium
+    pattern: 'curl\s.*\|\s*(?:bash|sh|sudo\s+bash|sudo\s+sh)'
+    languages: [shell]
+    cwe_id: "CWE-494"
+    fix_hint: "Download the script first, verify its checksum, then execute."
+    confidence: 0.8

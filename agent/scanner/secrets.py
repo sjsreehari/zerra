@@ -64,13 +64,13 @@ _PATTERNS: list[SecretPattern] = [
     # Stripe
     SecretPattern(
         name="Stripe Secret Key",
-        pattern=re.compile(r"sk_live_[0-9a-zA-Z]{24,99}"),
+        pattern=re.compile(r"(?:sk_live_|sk_test_)[0-9a-zA-Z]{24,99}"),
         severity=Severity.CRITICAL,
         description="Stripe secret API key — provides full access to payment operations",
     ),
     SecretPattern(
         name="Stripe Publishable Key",
-        pattern=re.compile(r"pk_live_[0-9a-zA-Z]{24,99}"),
+        pattern=re.compile(r"(?:pk_live_|pk_test_)[0-9a-zA-Z]{24,99}"),
         severity=Severity.LOW,
         description="Stripe publishable key — typically safe but confirms Stripe usage",
     ),

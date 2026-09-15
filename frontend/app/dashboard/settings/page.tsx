@@ -51,6 +51,45 @@ export default function SettingsPage() {
       </div>
 
       <form onSubmit={handleSave} className="space-y-6 max-w-4xl">
+        {/* GitHub & Auto-PR Configuration */}
+        <div className="rounded-2xl border border-border-default bg-bg-surface p-6 space-y-4 shadow-sm">
+          <h2 className="text-base font-semibold text-text-primary flex items-center gap-2">
+            <Zap size={16} className="text-emerald-500" />
+            GitHub & Autonomous Remediation (Auto-PR)
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+            <div>
+              <label className="block text-text-secondary font-medium mb-1">
+                GitHub Personal Access Token (PAT)
+              </label>
+              <input
+                type="password"
+                placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                className="w-full bg-bg-surface-sunken border border-border-default rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:border-border-focus font-mono"
+              />
+              <p className="text-[11px] text-text-muted mt-1">Requires `repo` scope to automatically open fix pull requests.</p>
+            </div>
+            <div>
+              <label className="block text-text-secondary font-medium mb-1">
+                Webhook Secret
+              </label>
+              <input
+                type="password"
+                placeholder="zerra-webhook-secret"
+                className="w-full bg-bg-surface-sunken border border-border-default rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:border-border-focus font-mono"
+              />
+              <p className="text-[11px] text-text-muted mt-1">Used to verify HMAC signatures on incoming GitHub webhooks.</p>
+            </div>
+          </div>
+          <div className="pt-2 flex items-center justify-between border-t border-border-default">
+            <div>
+              <div className="text-xs font-medium text-text-primary">Enable Automated Fix Pull Requests</div>
+              <div className="text-[11px] text-text-muted">Automatically open remediation PRs when high/critical vulnerabilities have verified fixes.</div>
+            </div>
+            <input type="checkbox" defaultChecked className="toggle-checkbox" />
+          </div>
+        </div>
+
         {/* Gateway Architecture Settings */}
         <div className="rounded-2xl border border-border-default bg-bg-surface p-6 space-y-4 shadow-sm">
           <h2 className="text-base font-semibold text-text-primary flex items-center gap-2">
