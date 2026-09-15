@@ -615,4 +615,298 @@ def export_latest_audit():
     return export_audit_log(latest_id)
 
 
+# ──────────────────────────────────────────────────────────
+# Zerra v2: Repository Scanner & Notifications API
+# ──────────────────────────────────────────────────────────
 
+from agent.scanner.models import ScanConfig, ScanMode, ScanResult as ScanResultModel, ScanStatus
+from agent.scanner.repo_scanner import RepoScanner
+from agent.integrations.webhook_handler import parse_webhook, format_scan_comment
+from agent.integrations.fix_generator import generate_fix, generate_pr_body
+from agent.notifications.dispatcher import NotificationDispatcher, NotificationConfig
+
+# In-memory stores (Phase 4 will add persistence)
+_repos: dict[str, dict] = {}
+_scans: dict[str, ScanResultModel] = {}
+_scanner = RepoScanner()
+_notification_dispatcher: NotificationDispatcher | None = None
+
+
+def _get_notifier() -> NotificationDispatcher:
+    global _notification_dispatcher
+    if _notification_dispatcher is None:
+        _notification_dispatcher = NotificationDispatcher()
+    return _notification_dispatcher
+
+
+class RepoCreate(BaseModel):
+    url: str
+    branch: str = "main"
+    auto_scan: bool = True
+    scan_mode: str = "standard"
+    github_token: str | None = None
+
+
+class ScanTrigger(BaseModel):
+    mode: str = "standard"
+    branch: str | None = None
+
+
+# ── Repository Management ────────────────────────────
+
+@app.post("/v1/repos")
+def register_repo(body: RepoCreate):
+    """Register a repository for monitoring."""
+    repo_id = uuid4().hex[:12]
+    _repos[repo_id] = {
+        "id": repo_id,
+        "url": body.url,
+        "branch": body.branch,
+        "auto_scan": body.auto_scan,
+        "scan_mode": body.scan_mode,
+        "github_token": body.github_token,
+        "status": "active",
+        "last_scan_id": None,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    return _repos[repo_id]
+
+
+@app.get("/v1/repos")
+def list_repos():
+    """List all monitored repositories."""
+    result = []
+    for repo_id, repo in _repos.items():
+        repo_data = {k: v for k, v in repo.items() if k != "github_token"}
+        if repo.get("last_scan_id") and repo["last_scan_id"] in _scans:
+            scan = _scans[repo["last_scan_id"]]
+            repo_data["last_scan"] = {
+                "id": scan.id,
+                "status": scan.status.value,
+                "security_score": scan.security_score,
+                "findings_count": len(scan.findings),
+                "critical_count": scan.critical_count,
+                "high_count": scan.high_count,
+                "completed_at": scan.completed_at.isoformat() if scan.completed_at else None,
+            }
+        result.append(repo_data)
+    return result
+
+
+@app.get("/v1/repos/{repo_id}")
+def get_repo(repo_id: str):
+    """Get details of a specific repository."""
+    if repo_id not in _repos:
+        raise HTTPException(status_code=404, detail="Repository not found")
+    return {k: v for k, v in _repos[repo_id].items() if k != "github_token"}
+
+
+@app.delete("/v1/repos/{repo_id}")
+def remove_repo(repo_id: str):
+    """Remove a repository from monitoring."""
+    if repo_id not in _repos:
+        raise HTTPException(status_code=404, detail="Repository not found")
+    del _repos[repo_id]
+    return {"status": "deleted", "id": repo_id}
+
+
+# ── Scan Operations ─────────────────────────────────
+
+@app.post("/v1/repos/{repo_id}/scan")
+async def trigger_scan(repo_id: str, body: ScanTrigger | None = None):
+    """Trigger a manual scan for a repository."""
+    if repo_id not in _repos:
+        raise HTTPException(status_code=404, detail="Repository not found")
+    repo = _repos[repo_id]
+    mode_str = (body.mode if body else repo.get("scan_mode", "standard"))
+    branch = (body.branch if body and body.branch else repo.get("branch", "main"))
+    config = ScanConfig(
+        repo_url=repo["url"],
+        branch=branch,
+        mode=ScanMode(mode_str),
+        github_token=repo.get("github_token"),
+    )
+    result = await _scanner.scan_async(config)
+    _scans[result.id] = result
+    _repos[repo_id]["last_scan_id"] = result.id
+    try:
+        _get_notifier().notify_scan_complete(result)
+    except Exception:
+        pass
+    return {
+        "scan_id": result.id,
+        "status": result.status.value,
+        "security_score": result.security_score,
+        "findings_count": len(result.findings),
+        "critical_count": result.critical_count,
+        "high_count": result.high_count,
+        "medium_count": result.medium_count,
+        "low_count": result.low_count,
+        "duration_seconds": result.duration_seconds,
+    }
+
+
+@app.post("/v1/scan")
+async def scan_repo_directly(config: ScanConfig):
+    """Scan a repository directly without registering it."""
+    result = await _scanner.scan_async(config)
+    _scans[result.id] = result
+    return result
+
+
+@app.get("/v1/scans")
+def list_scans():
+    """List all scan results."""
+    return [
+        {
+            "id": s.id, "repo_url": s.repo_url, "branch": s.branch,
+            "status": s.status.value, "security_score": s.security_score,
+            "findings_count": len(s.findings),
+            "critical_count": s.critical_count, "high_count": s.high_count,
+            "medium_count": s.medium_count, "low_count": s.low_count,
+            "started_at": s.started_at.isoformat() if s.started_at else None,
+            "completed_at": s.completed_at.isoformat() if s.completed_at else None,
+            "duration_seconds": s.duration_seconds, "languages": s.languages_detected,
+        }
+        for s in sorted(_scans.values(),
+                         key=lambda x: x.started_at or datetime.min.replace(tzinfo=timezone.utc),
+                         reverse=True)
+    ]
+
+
+@app.get("/v1/scans/{scan_id}")
+def get_scan(scan_id: str):
+    """Get full scan result with findings."""
+    if scan_id not in _scans:
+        raise HTTPException(status_code=404, detail="Scan not found")
+    return _scans[scan_id]
+
+
+@app.get("/v1/scans/{scan_id}/findings")
+def get_scan_findings(scan_id: str, severity: str | None = None):
+    """Get findings for a specific scan."""
+    if scan_id not in _scans:
+        raise HTTPException(status_code=404, detail="Scan not found")
+    findings = _scans[scan_id].findings
+    if severity:
+        findings = [f for f in findings if f.severity.value == severity.lower()]
+    return findings
+
+
+@app.get("/v1/scans/{scan_id}/sarif")
+def export_scan_sarif(scan_id: str):
+    """Export scan results in SARIF 2.1.0 format."""
+    if scan_id not in _scans:
+        raise HTTPException(status_code=404, detail="Scan not found")
+    scan = _scans[scan_id]
+    sarif: dict = {
+        "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+        "version": "2.1.0",
+        "runs": [{"tool": {"driver": {"name": "Zerra", "version": "2.0.0",
+                  "informationUri": "https://github.com/sjsreehari/zerra",
+                  "rules": []}}, "results": []}],
+    }
+    rules_seen: dict[str, int] = {}
+    run = sarif["runs"][0]
+    for finding in scan.findings:
+        rid = finding.rule_id or finding.id
+        if rid not in rules_seen:
+            rules_seen[rid] = len(run["tool"]["driver"]["rules"])
+            run["tool"]["driver"]["rules"].append({
+                "id": rid,
+                "shortDescription": {"text": finding.title},
+                "fullDescription": {"text": finding.description[:1000]},
+                "properties": {"security-severity": str(finding.cvss_score or "5.0")},
+            })
+        entry: dict = {
+            "ruleId": rid, "ruleIndex": rules_seen[rid],
+            "level": {"critical": "error", "high": "error", "medium": "warning",
+                      "low": "note", "info": "note"}.get(finding.severity.value, "warning"),
+            "message": {"text": finding.description[:500]}, "locations": [],
+        }
+        if finding.file_path:
+            entry["locations"].append({"physicalLocation": {
+                "artifactLocation": {"uri": finding.file_path},
+                "region": {"startLine": finding.line_start or 1,
+                           "endLine": finding.line_end or finding.line_start or 1},
+            }})
+        run["results"].append(entry)
+    return sarif
+
+
+@app.post("/v1/webhooks/github")
+async def github_webhook(request_body: dict):
+    """Receive and process GitHub webhook events."""
+    events = parse_webhook("push", request_body)
+    results = []
+    for event in events:
+        for repo_id, repo in _repos.items():
+            if event.repo_full_name in repo["url"] or repo["url"] in event.repo_url:
+                config = ScanConfig(
+                    repo_url=event.repo_url,
+                    branch=event.branch or repo.get("branch", "main"),
+                    commit_sha=event.commit_sha,
+                    mode=ScanMode(repo.get("scan_mode", "standard")),
+                    github_token=repo.get("github_token"),
+                )
+                scan_result = await _scanner.scan_async(config)
+                _scans[scan_result.id] = scan_result
+                _repos[repo_id]["last_scan_id"] = scan_result.id
+                try:
+                    _get_notifier().notify_scan_complete(scan_result)
+                except Exception:
+                    pass
+                results.append({"repo": event.repo_full_name, "scan_id": scan_result.id,
+                                "grade": scan_result.security_score, "findings": len(scan_result.findings)})
+                break
+    return {"processed": len(results), "results": results}
+
+
+@app.get("/v1/findings")
+def list_all_findings(severity: str | None = None, limit: int = 100):
+    """List findings across all scans."""
+    all_findings = []
+    for scan in _scans.values():
+        for f in scan.findings:
+            fd = f.model_dump()
+            fd["scan_id"] = scan.id
+            fd["repo_url"] = scan.repo_url
+            all_findings.append(fd)
+    if severity:
+        all_findings = [f for f in all_findings if f["severity"] == severity.lower()]
+    sev_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+    all_findings.sort(key=lambda x: sev_order.get(x["severity"], 5))
+    return all_findings[:limit]
+
+
+@app.post("/v1/notifications/test")
+def test_notifications():
+    """Test all configured notification channels."""
+    results = _get_notifier().test_all_channels()
+    return {"channels": _get_notifier().active_channels, "results": results}
+
+
+@app.get("/v1/notifications/channels")
+def list_notification_channels():
+    """List configured notification channels."""
+    return {"channels": _get_notifier().active_channels}
+
+
+@app.get("/v1/dashboard/stats")
+def dashboard_stats():
+    """Aggregate stats for the dashboard."""
+    total_findings = sum(len(s.findings) for s in _scans.values())
+    total_critical = sum(s.critical_count for s in _scans.values())
+    total_high = sum(s.high_count for s in _scans.values())
+    weight = total_critical * 10 + total_high * 5
+    overall_grade = "A+" if total_findings == 0 else "A" if weight == 0 else "B" if weight <= 5 else "C" if weight <= 15 else "D" if weight <= 30 else "F"
+    recent = sorted(_scans.values(), key=lambda x: x.started_at or datetime.min.replace(tzinfo=timezone.utc), reverse=True)[:5]
+    return {
+        "total_repos": len(_repos), "total_scans": len(_scans),
+        "total_findings": total_findings, "total_critical": total_critical,
+        "total_high": total_high, "overall_grade": overall_grade,
+        "active_channels": _get_notifier().active_channels,
+        "recent_scans": [{"id": s.id, "repo_url": s.repo_url, "grade": s.security_score,
+                          "findings": len(s.findings),
+                          "completed_at": s.completed_at.isoformat() if s.completed_at else None} for s in recent],
+    }
