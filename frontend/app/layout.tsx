@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Zerra — Authorisation That Understands Intent",
-  description: "Identity-aware authorisation for AI agents, users, and services.",
+  title: "Zerra — Autonomous Security Platform",
+  description: "Autonomous repository security, automated fix PRs, and multi-channel incident alerting.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

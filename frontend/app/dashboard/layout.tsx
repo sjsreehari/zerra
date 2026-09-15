@@ -12,7 +12,6 @@ import {
   Settings,
 } from "lucide-react";
 
-import AnnouncementBar from "../components/shared/AnnouncementBar";
 import Sidebar from "../components/shared/Sidebar";
 import Topbar from "../components/shared/Topbar";
 
@@ -21,9 +20,6 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-
-  const [showAnnouncement, setShowAnnouncement] = useState(true)
-
   const TABS = [
     {
       id: 1,
@@ -97,17 +93,6 @@ export default function DashboardLayout({
         tabs={TABS}
       />
 
-      <div className="flex flex-1 flex-col overflow-hidden">
-        {
-          showAnnouncement && (
-            <AnnouncementBar
-              message="Zerra v2 is live — auto-scan repos, generate fix PRs, and get alerts on WhatsApp, Discord, Teams & Email."
-              linkHref="https://github.com/sjsreehari/zerra"
-              linkLabel="Star on GitHub"
-              close={() => setShowAnnouncement(false)}
-            />
-          )
-        }
         <Topbar />
 
         <main className="flex-1 overflow-y-auto p-6">
