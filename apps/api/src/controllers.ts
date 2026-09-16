@@ -1,7 +1,13 @@
-import { Controller, Get, HttpCode, Post, Req, UnauthorizedException } from "@nestjs/common";
+import { Controller, Get, HttpCode, Param, Post, Req, UnauthorizedException } from "@nestjs/common";
 import type { Request } from "express"; import { PrismaClient } from "@prisma/client"; import { scanQueue } from "./queue.js"; import { isPullRequestEvent, verifyGithubSignature } from "./webhook.js";
 const prisma = new PrismaClient();
 @Controller() export class HealthController { @Get("health") health() { return { status: "ok" }; } }
+@Controller() export class DashboardController {
+  @Get("repos") async repos() { const repos=await prisma.repo.findMany({include:{scans:{orderBy:{startedAt:"desc"},take:1}}}); return repos.map(repo=>({id:repo.id,fullName:repo.fullName,defaultBranch:repo.defaultBranch,lastScan:repo.scans[0]??null})); }
+  @Get("findings") async findings() { return prisma.finding.findMany({orderBy:{createdAt:"desc"},take:200,include:{scan:{include:{repo:true}},fixAttempts:true}}); }
+  @Get("activity") async activity() { return prisma.auditLogEntry.findMany({orderBy:{createdAt:"desc"},take:100}); }
+  @Get("scans/:id/sarif") async sarif(@Param("id") id:string) { const scan=await prisma.scan.findUniqueOrThrow({where:{id},include:{findings:true}}); return {version:"2.1.0",$schema:"https://json.schemastore.org/sarif-2.1.0.json",runs:[{tool:{driver:{name:"Zerra",rules:scan.findings.map(f=>({id:f.ruleId,name:f.title,shortDescription:{text:f.title}}))}},results:scan.findings.map(f=>({ruleId:f.ruleId,level:f.severity.toLowerCase(),message:{text:f.description},locations:[{physicalLocation:{artifactLocation:{uri:f.path},region:{startLine:f.line}}}]}))}]}; }
+}
 @Controller("webhooks") export class WebhookController {
   @Post("github") @HttpCode(200) async github(@Req() req: Request & { rawBody?: Buffer }) {
     const raw = req.rawBody ?? Buffer.from(JSON.stringify(req.body));

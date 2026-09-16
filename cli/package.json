@@ -1,0 +1,1 @@
+{"name":"@zerra/cli","version":"0.1.0","private":true,"type":"module","bin":{"zerra":"dist/index.js"},"scripts":{"build":"tsc -p tsconfig.json","test":"vitest run","start":"tsx src/index.ts"},"dependencies":{"commander":"^12.1.0","keytar":"^7.9.0"},"devDependencies":{"@types/node":"^22.10.2","typescript":"^5.7.2","vitest":"^2.1.8"}}
