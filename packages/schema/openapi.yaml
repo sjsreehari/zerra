@@ -1,0 +1,21 @@
+openapi: 3.1.0
+info:
+  title: Zerra API
+  version: 0.1.0
+paths:
+  /health:
+    get:
+      responses: { '200': { description: Service health } }
+  /webhooks/github:
+    post:
+      summary: Verify and queue a GitHub webhook delivery
+      responses:
+        '200': { description: Queued or duplicate delivery }
+        '401': { description: Invalid signature }
+  /repos:
+    get:
+      responses: { '200': { description: Repositories } }
+  /scans/{id}/sarif:
+    get:
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses: { '200': { description: SARIF 2.1.0 export } }

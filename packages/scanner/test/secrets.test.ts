@@ -1,0 +1,3 @@
+import { describe, expect, it } from "vitest"; import { scanSecrets } from "../src/secrets.js"; import { safeGitRef, safeRepositoryUrl } from "../src/security.js";
+describe("secret scanning", () => { it("finds GitHub tokens but not UUIDs", () => { expect(scanSecrets("a.ts", "const t='ghp_abcdefghijklmnopqrstuvwxyz0123456789';").length).toBe(1); expect(scanSecrets("a.ts", "const id='550e8400-e29b-41d4-a716-446655440000';")).toEqual([]); }); });
+describe("input guards", () => { it("rejects dangerous clone values", () => { expect(() => safeGitRef("--upload-pack=x")).toThrow(); expect(() => safeRepositoryUrl("file:///etc")).toThrow(); expect(safeRepositoryUrl("https://github.com/acme/repo.git")).toContain("github.com"); }); });

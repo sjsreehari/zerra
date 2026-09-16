@@ -1,0 +1,26 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment: { POSTGRES_USER: zerra, POSTGRES_PASSWORD: zerra, POSTGRES_DB: zerra }
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U zerra -d zerra"], interval: 5s, timeout: 3s, retries: 20 }
+    ports: ["5432:5432"]
+  redis:
+    image: redis:7-alpine
+    healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 5s, timeout: 3s, retries: 20 }
+    ports: ["6379:6379"]
+  api:
+    build: { context: .., dockerfile: apps/api/Dockerfile }
+    env_file: ../.env
+    environment: { DATABASE_URL: postgresql://zerra:zerra@postgres:5432/zerra?schema=public, REDIS_URL: redis://redis:6379 }
+    depends_on: { postgres: { condition: service_healthy }, redis: { condition: service_healthy } }
+    ports: ["3001:3001"]
+  worker:
+    build: { context: .., dockerfile: apps/worker/Dockerfile }
+    env_file: ../.env
+    environment: { DATABASE_URL: postgresql://zerra:zerra@postgres:5432/zerra?schema=public, REDIS_URL: redis://redis:6379 }
+    depends_on: { postgres: { condition: service_healthy }, redis: { condition: service_healthy } }
+  dashboard:
+    build: { context: .., dockerfile: apps/dashboard/Dockerfile }
+    environment: { API_URL: http://api:3001 }
+    depends_on: { api: { condition: service_started } }
+    ports: ["3000:3000"]

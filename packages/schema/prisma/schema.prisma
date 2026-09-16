@@ -1,0 +1,18 @@
+generator client { provider = "prisma-client-js" }
+datasource db { provider = "postgresql"; url = env("DATABASE_URL") }
+
+enum ScanStatus { QUEUED RUNNING COMPLETED FAILED }
+enum FindingKind { SAST SCA SECRET IAC }
+enum Severity { CRITICAL HIGH MEDIUM LOW INFO }
+enum FindingStatus { OPEN FIXED IGNORED NEEDS_HUMAN }
+enum FixStatus { PENDING VERIFIED FAILED ISSUE_OPENED PR_OPENED }
+
+model Repo { id String @id @default(cuid()); githubId BigInt @unique; fullName String @unique; defaultBranch String; installationId String; installation Installation @relation(fields:[installationId], references:[id]); scans Scan[]; createdAt DateTime @default(now()); updatedAt DateTime @updatedAt }
+model Installation { id String @id @default(cuid()); githubInstallationId BigInt @unique; accountLogin String; repositories Repo[]; createdAt DateTime @default(now()); updatedAt DateTime @updatedAt }
+model Scan { id String @id @default(cuid()); repoId String; repo Repo @relation(fields:[repoId],references:[id]); pullNumber Int?; baseSha String?; headSha String?; status ScanStatus @default(QUEUED); startedAt DateTime @default(now()); completedAt DateTime?; findings Finding[]; auditLogs AuditLogEntry[] }
+model Finding { id String @id @default(cuid()); scanId String; scan Scan @relation(fields:[scanId],references:[id]); fingerprint String; kind FindingKind; ruleId String; title String; description String; severity Severity; cvss Float; path String; line Int; endLine Int?; evidence String?; reachable Boolean @default(false); reasoning Json; status FindingStatus @default(OPEN); fixAttempts FixAttempt[]; createdAt DateTime @default(now()); @@unique([scanId,fingerprint]) }
+model FixAttempt { id String @id @default(cuid()); findingId String; finding Finding @relation(fields:[findingId],references:[id]); status FixStatus @default(PENDING); diff String?; verification Json?; prUrl String?; issueUrl String?; createdAt DateTime @default(now()); updatedAt DateTime @updatedAt }
+model User { id String @id @default(cuid()); githubId BigInt @unique; login String; email String?; createdAt DateTime @default(now()) }
+model AuditLogEntry { id String @id @default(cuid()); scanId String?; scan Scan? @relation(fields:[scanId],references:[id]); action String; actor String; metadata Json?; createdAt DateTime @default(now()) }
+model ProcessedWebhookDelivery { id String @id @default(cuid()); deliveryId String @unique; event String; receivedAt DateTime @default(now()) }
+model OsvCacheEntry { id String @id @default(cuid()); packageName String; ecosystem String; version String; vulnerabilities Json; fetchedAt DateTime @default(now()); expiresAt DateTime; @@unique([packageName,ecosystem,version]) }
