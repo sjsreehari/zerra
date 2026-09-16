@@ -1,0 +1,1 @@
+{"name":"@zerra/worker","version":"0.1.0","private":true,"type":"module","scripts":{"build":"tsc -p tsconfig.json","test":"vitest run","start":"tsx src/main.ts"},"dependencies":{"@prisma/client":"^6.1.0","@zerra/fix-engine":"*","@zerra/scanner":"*","@zerra/schema":"*","bullmq":"^5.34.10","ioredis":"^5.4.2"},"devDependencies":{"typescript":"^5.7.2","vitest":"^2.1.8"}}

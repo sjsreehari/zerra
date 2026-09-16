@@ -1,0 +1,2 @@
+import { describe, expect, it, vi } from "vitest"; import { queryOsvBatch } from "../src/runner.js";
+describe("OSV client", () => { it("uses querybatch", async () => { const f=vi.fn().mockResolvedValue({ok:true,json:async()=>({results:[{vulns:[]} ]})}); vi.stubGlobal("fetch",f); await queryOsvBatch([{package:{name:"x",ecosystem:"npm"},version:"1.0.0"}]); expect(f.mock.calls[0][0]).toBe("https://api.osv.dev/v1/querybatch"); }); });
