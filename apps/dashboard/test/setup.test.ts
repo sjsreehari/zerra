@@ -1,2 +1,2 @@
 import { describe, expect, it } from "vitest"; import { readFileSync } from "node:fs"; import { join } from "node:path";
-describe("setup page",()=>{it("uses GitHub manifest onboarding instead of a token field",()=>{const source=readFileSync(join(import.meta.dirname,"../app/setup/page.tsx"),"utf8"); expect(source).toContain("github.com/settings/apps/new"); expect(source).not.toContain("personal access token");});});
+describe("setup page",()=>{it("uses GitHub manifest onboarding instead of a token field",()=>{const source=readFileSync(join(import.meta.dirname,"../app/setup/page.tsx"),"utf8"); expect(source).toContain("github.com/settings/apps/new"); expect(source).not.toContain('type="password"');});});
