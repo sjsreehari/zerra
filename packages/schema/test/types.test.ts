@@ -1,0 +1,2 @@
+import { describe, expect, it } from "vitest"; import type { NormalizedFinding } from "../src/index.js";
+describe("shared finding contract",()=>{it("models normalized cross-scanner output",()=>{const finding:NormalizedFinding={fingerprint:"x",kind:"SAST",ruleId:"rule",title:"title",description:"description",severity:"HIGH",cvss:7.5,path:"src/a.ts",line:1,reachable:true,reasoning:["evidence"]}; expect(finding.cvss).toBeGreaterThan(0);});});
