@@ -1,0 +1,2 @@
+import { describe, expect, it } from "vitest"; import { readFileSync } from "node:fs"; import { join } from "node:path";
+describe("GitHub App client",()=>{it("keeps installation credentials out of command arguments",()=>{const source=readFileSync(join(import.meta.dirname,"../src/github.ts"),"utf8"); expect(source).toContain("GIT_CONFIG_VALUE_0"); expect(source).not.toContain("https://x-access-token");});});

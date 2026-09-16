@@ -1,0 +1,14 @@
+version: 1
+policy:
+  block_merge_on:
+    - CRITICAL
+  auto_fix:
+    minimum_confidence: 0.9
+    require_tests: true
+    require_rescan: true
+scanner:
+  include_iac: true
+  scan_changed_files_only: true
+llm:
+  enabled: false
+  provider: anthropic
