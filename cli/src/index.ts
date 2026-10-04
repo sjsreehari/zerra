@@ -21,6 +21,7 @@ import { join, resolve } from "node:path";
 import { homedir, platform } from "node:os";
 import { createInterface } from "node:readline";
 import { DOCKER_NOT_RUNNING_MESSAGE, isDockerDaemonRunning } from "./docker.js";
+import { isGitIdentityConfigured } from "./git.js";
 
 const run = promisify(exec);
 const program = new Command();
@@ -161,6 +162,16 @@ program
         fail(`${name} — ${hint}`);
         allOk = false;
       }
+    }
+
+    if (isGitIdentityConfigured()) {
+      ok("Git user identity configured");
+    } else {
+      warn(
+        'Git user identity is not set. Run:\n' +
+        '         git config --global user.name "Your Name"\n' +
+        '         git config --global user.email "you@example.com"'
+      );
     }
 
     // Python version
