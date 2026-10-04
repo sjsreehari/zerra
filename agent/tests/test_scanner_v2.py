@@ -57,6 +57,26 @@ def get_user(user_id):
     assert fix.file_path == "models.py"
 
 
+def test_go_ssrf_fix_recommends_safe_outbound_url_validation():
+    finding = Finding(
+        title="User-controlled URL reaches an HTTP client",
+        description="Potential SSRF",
+        severity=Severity.HIGH,
+        vulnerability_type=VulnerabilityType.SAST,
+        file_path="handler.go",
+        code_snippet="resp, err := http.Get(url)",
+        rule_id="go-ssrf-http-user-controlled-url",
+    )
+
+    fix = generate_fix(finding)
+
+    assert fix is not None
+    assert "validateOutboundURL(url)" in fix.fixed_code
+    assert "link-local" in fix.explanation
+    assert "DNS rebinding" in fix.explanation
+    assert "redirect" in fix.explanation
+
+
 def test_end_to_end_repo_scanner(tmp_path):
     # Setup miniature test repo
     (tmp_path / "app.py").write_text('API_KEY = "AKIAIOSFODNN7EXAMPLE"\ndef test(): pass\n')

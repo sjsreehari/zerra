@@ -1,0 +1,32 @@
+rules:
+  - id: go-ssrf-http-user-controlled-url
+    languages: [go]
+    message: >-
+      User-controlled URL reaches an HTTP client. Validate and restrict the
+      destination before making the request. This rule covers recognized local
+      query/form flows; it does not cover every input source or interprocedural flow.
+    severity: ERROR
+    mode: taint
+    metadata:
+      cwe: "CWE-918"
+      owasp: "A10:2021 - Server-Side Request Forgery"
+      security-severity: "7.5"
+      technology: [go]
+      confidence: MEDIUM
+    pattern-sources:
+      - pattern-either:
+          - pattern: $R.URL.Query().Get(...)
+          - pattern: $R.FormValue(...)
+    pattern-sinks:
+      - pattern-either:
+          - pattern: http.Get($URL)
+          - pattern: http.Post($URL, ...)
+          - pattern: http.NewRequest(..., $URL, ...)
+          - pattern: $CLIENT.Do($REQ)
+    pattern-propagators:
+      - pattern: $REQ, $ERR := http.NewRequest(..., $URL, ...)
+        from: $URL
+        to: $REQ
+      - pattern: $REQ, $ERR = http.NewRequest(..., $URL, ...)
+        from: $URL
+        to: $REQ

@@ -38,6 +38,9 @@ def generate_fix(finding: Finding, file_content: str | None = None) -> Optional[
     if "command-injection-subprocess-shell" in rule_id:
         return _fix_subprocess_shell(finding, snippet)
 
+    if "go-ssrf-http-user-controlled-url" in rule_id:
+        return _fix_go_ssrf(finding, snippet)
+
     # ── Eval fixes ──────────────────────────────────
     if "eval-usage" in rule_id and "python" in rule_id:
         return _fix_python_eval(finding, snippet)
@@ -121,6 +124,23 @@ def _fix_subprocess_shell(finding: Finding, snippet: str) -> FixSuggestion:
         fixed_code=snippet.replace("shell=True", "shell=False"),
         explanation="Set shell=False to prevent shell injection. "
                     "Pass the command as a list of arguments instead of a string.",
+    )
+
+
+def _fix_go_ssrf(finding: Finding, snippet: str) -> FixSuggestion:
+    return FixSuggestion(
+        file_path=finding.file_path or "",
+        original_code=snippet,
+        fixed_code="validatedURL, err := validateOutboundURL(url)\n"
+                   "if err != nil {\n\treturn err\n}\n"
+                   "resp, err := http.Get(validatedURL)",
+        explanation=(
+            "Do not send the supplied URL directly. Implement validateOutboundURL to "
+            "allow only expected schemes and hosts, resolve all A/AAAA records, and "
+            "reject loopback, private, link-local, multicast, unspecified, and other "
+            "disallowed IP ranges. Pin the connection to a validated address to limit "
+            "DNS rebinding, and revalidate every redirect (or disable redirects)."
+        ),
     )
 
 
