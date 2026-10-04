@@ -31,7 +31,7 @@ jobs:
         run: npm run prisma:generate
 
       - name: Typecheck all workspaces
-        run: npx tsc --noEmit
+        run: npm run build
 
   ts-unit-tests:
     name: TS Unit Tests (Vitest)
@@ -97,7 +97,7 @@ jobs:
           pip install -r agent/requirements-dev.txt
 
       - name: Run pytest (all agent tests)
-        run: pytest agent/tests/ -v --tb=short --asyncio-mode=auto
+        run: PYTHONPATH=. pytest agent/tests/ -v --tb=short --asyncio-mode=auto
 
 
   # ─── Go Scanner Worker ────────────────────────────────────────────────────
@@ -110,7 +110,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version: "1.22"
+          go-version: "1.25"
           cache-dependency-path: backend/go.sum
 
       - name: Run Go tests

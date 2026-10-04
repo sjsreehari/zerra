@@ -87,7 +87,7 @@ export default function HomePage() {
           alreadyRegistered: data.alreadyRegistered,
           message: data.message,
         });
-        if (!data.alreadyRegistered && data.position >= nextSpot) {
+        if (!data.alreadyRegistered && nextSpot !== null && data.position >= nextSpot) {
           setNextSpot(data.position + 1);
         }
       }

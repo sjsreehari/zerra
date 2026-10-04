@@ -40,6 +40,22 @@ func TestSubdomainFromHostAcceptsLocalHostnameWithConfiguredDomain(t *testing.T)
 	}
 }
 
+type closeNotifierRecorder struct {
+	*httptest.ResponseRecorder
+	closed chan bool
+}
+
+func (c *closeNotifierRecorder) CloseNotify() <-chan bool {
+	return c.closed
+}
+
+func newCloseNotifierRecorder() *closeNotifierRecorder {
+	return &closeNotifierRecorder{
+		ResponseRecorder: httptest.NewRecorder(),
+		closed:           make(chan bool, 1),
+	}
+}
+
 func TestForwardProxiesRequestWithoutRedirectingClient(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -60,7 +76,7 @@ func TestForwardProxiesRequestWithoutRedirectingClient(t *testing.T) {
 	}))
 	defer upstream.Close()
 
-	recorder := httptest.NewRecorder()
+	recorder := newCloseNotifierRecorder()
 	context, _ := gin.CreateTestContext(recorder)
 	request := httptest.NewRequest(http.MethodPost, "http://qroasis.127.0.0.1:8080/api/invoices?page=2", bytes.NewBufferString(`{"hello":"world"}`))
 	request.Host = "qroasis.127.0.0.1:8080"
@@ -81,7 +97,7 @@ func TestForwardRewritesUpstreamRedirectToGateway(t *testing.T) {
 	}))
 	defer upstream.Close()
 
-	recorder := httptest.NewRecorder()
+	recorder := newCloseNotifierRecorder()
 	context, _ := gin.CreateTestContext(recorder)
 	request := httptest.NewRequest(http.MethodGet, "http://qroasis.127.0.0.1:8080/private", nil)
 	request.Host = "qroasis.127.0.0.1:8080"

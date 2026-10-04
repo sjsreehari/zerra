@@ -20,6 +20,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { homedir, platform } from "node:os";
 import { createInterface } from "node:readline";
+import { DOCKER_NOT_RUNNING_MESSAGE, isDockerDaemonRunning } from "./docker.js";
 
 const run = promisify(exec);
 const program = new Command();
@@ -87,7 +88,7 @@ async function waitForHealth(url: string, timeoutMs = 60_000): Promise<boolean> 
   return false;
 }
 
-// ─── init ────────────────────────────────────────────────────────────────────
+// ─── init ─────────────────────────────────────────────────────────────────
 
 program
   .command("init")
@@ -102,6 +103,11 @@ program
 
     if (!existsSync(composeFile)) {
       error(`compose.yaml not found. Run 'cd /path/to/zerra && zerra init' or install Zerra first.`);
+      process.exit(1);
+    }
+
+    if (!isDockerDaemonRunning()) {
+      error(DOCKER_NOT_RUNNING_MESSAGE);
       process.exit(1);
     }
 
@@ -326,7 +332,7 @@ program
     process.exit(proc.status ?? 0);
   });
 
-// ─── stop ────────────────────────────────────────────────────────────────────
+// ─── stop ──────────────────────────────────────────────────────────────────
 
 program
   .command("stop")
