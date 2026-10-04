@@ -1,0 +1,13 @@
+# Zerra Agent — test dependency'leri (CI ve yerel gelistirme icin)
+#
+# CI, pytest araclarini ad-hoc `pip install pytest pytest-asyncio httpx`
+# ile kuruyordu; surumler sabitlenmedigi icin yeni bir pytest-asyncio
+# yayimlandiginda CI kaynakli olarak degisir. Burada surumler sabitlendir.
+#
+# Runtime bagimliliklari agent/requirements.txt'ten gelir.
+
+-r requirements.txt
+
+pytest==9.1.1
+pytest-asyncio==1.4.0
+httpx>=0.27.0

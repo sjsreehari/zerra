@@ -1354,3 +1354,251 @@ def llm_backends_status():
             },
         ]
     }
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# /v1/analyze  — Full end-to-end pipeline: scan → fix → PR → issues
+# No AI API key required. Uses pattern-based fixes.
+# ════════════════════════════════════════════════════════════════════════════
+
+class AnalyzeRequest(BaseModel):
+    """Request body for a full analysis run."""
+    # Local folder path or GitHub URL (will be cloned into a temp dir)
+    target: str = Field(..., description="Local folder path or GitHub repo URL")
+
+    # GitHub repo URL for opening issues/PRs. If target is a GitHub URL and this is
+    # empty, it will be inferred from target.
+    github_repo_url: str = Field("", description="GitHub repo URL for PRs/issues (inferred if empty)")
+
+    # GitHub Personal Access Token. If not provided, Zerra reads from vault/env.
+    github_token: str = Field("", description="GitHub PAT (uses vault/env if empty)")
+
+    # Branch to scan and base PRs on
+    branch: str = Field("main", description="Branch to scan")
+
+    # Scan settings
+    mode: str = Field("standard", description="Scan mode: quick | standard | deep")
+    enable_sast: bool = Field(True, description="Run SAST analysis")
+    enable_secrets: bool = Field(True, description="Run secrets detection")
+    enable_sca: bool = Field(True, description="Run dependency vulnerability check")
+
+    # PR / Issue options
+    max_prs: int = Field(10, ge=0, le=50, description="Max automated PRs to open per run")
+    open_issues: bool = Field(True, description="Open GitHub Issues for unfixable findings")
+    run_tests: bool = Field(True, description="Run project tests to verify fixes")
+
+
+@app.post("/v1/analyze")
+async def analyze_full(req: AnalyzeRequest):
+    """Run the complete Zerra pipeline on a target.
+
+    1. Scans the target (local folder or GitHub repo)
+    2. Generates pattern-based fixes (no AI key needed)
+    3. Applies fixes locally, verifies with project tests
+    4. Opens GitHub PRs for every successful fix
+    5. Opens GitHub Issues for findings without auto-fixes
+
+    Returns a full report with PRs opened, issues opened, grade, and finding counts.
+    """
+    from agent.scanner.models import ScanMode as _ScanMode
+    from agent.orchestrator.analysis import AnalysisOrchestrator, OrchestrationConfig
+
+    _mode_map = {"quick": _ScanMode.QUICK, "standard": _ScanMode.STANDARD, "deep": _ScanMode.DEEP}
+    mode = _mode_map.get(req.mode, _ScanMode.STANDARD)
+
+    # Infer github_repo_url from target if it's a GitHub URL
+    github_repo_url = req.github_repo_url
+    if not github_repo_url and req.target.startswith("https://github.com"):
+        github_repo_url = req.target
+
+    config = OrchestrationConfig(
+        target=req.target,
+        github_repo_url=github_repo_url,
+        github_token=req.github_token,
+        branch=req.branch,
+        mode=mode,
+        max_prs=req.max_prs,
+        run_tests=req.run_tests,
+        open_issues=req.open_issues,
+        enable_sast=req.enable_sast,
+        enable_secrets=req.enable_secrets,
+        enable_sca=req.enable_sca,
+    )
+
+    orchestrator = AnalysisOrchestrator()
+    loop = asyncio.get_event_loop()
+    report = await loop.run_in_executor(None, orchestrator.run, config)
+    return report.to_dict()
+
+
+class ScanFolderRequest(BaseModel):
+    """Lightweight request for scanning a local folder — no GitHub required."""
+    path: str = Field(..., description="Absolute path to local project folder")
+    mode: str = Field("standard", description="Scan mode: quick | standard | deep")
+    enable_sast: bool = True
+    enable_secrets: bool = True
+    enable_sca: bool = True
+
+
+@app.post("/v1/scan-folder")
+async def scan_local_folder(req: ScanFolderRequest):
+    """Scan a local folder and return all findings immediately.
+
+    No GitHub token needed. Returns findings grouped by severity.
+    Use /v1/analyze to also create PRs and issues.
+    """
+    import pathlib
+    from agent.scanner.models import ScanConfig, ScanMode as _ScanMode
+    from agent.scanner.repo_scanner import RepoScanner
+
+    folder = pathlib.Path(req.path)
+    if not folder.exists():
+        raise HTTPException(status_code=400, detail=f"Path does not exist: {req.path}")
+    if not folder.is_dir():
+        raise HTTPException(status_code=400, detail=f"Path is not a directory: {req.path}")
+
+    _mode_map = {"quick": _ScanMode.QUICK, "standard": _ScanMode.STANDARD, "deep": _ScanMode.DEEP}
+    mode = _mode_map.get(req.mode, _ScanMode.STANDARD)
+
+    scan_cfg = ScanConfig(
+        repo_url=req.path,
+        mode=mode,
+        enable_sast=req.enable_sast,
+        enable_secrets=req.enable_secrets,
+        enable_sca=req.enable_sca,
+        excluded_paths=[".git", "node_modules", ".venv", "__pycache__", "dist", "build"],
+    )
+
+    scanner = RepoScanner()
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, scanner.scan, scan_cfg)
+
+    findings_out = []
+    for f in result.findings:
+        from agent.integrations.fix_generator import generate_fix
+        fix = generate_fix(f)
+        findings_out.append({
+            "id": f.id,
+            "title": f.title,
+            "severity": f.severity.value,
+            "type": f.vulnerability_type.value,
+            "file": f.file_path,
+            "line": f.line_start,
+            "code_snippet": f.code_snippet,
+            "description": f.description,
+            "cwe": f.cwe_id,
+            "owasp": f.owasp_category,
+            "has_auto_fix": fix is not None,
+            "fix_explanation": fix.explanation if fix else None,
+        })
+
+    return {
+        "scan_id": result.id,
+        "path": req.path,
+        "status": result.status.value,
+        "security_grade": result.security_score,
+        "files_scanned": result.files_scanned,
+        "languages": result.languages_detected,
+        "duration_seconds": result.duration_seconds,
+        "summary": {
+            "total": len(result.findings),
+            "critical": result.critical_count,
+            "high": result.high_count,
+            "medium": result.medium_count,
+            "low": result.low_count,
+            "auto_fixable": sum(1 for f in findings_out if f["has_auto_fix"]),
+        },
+        "findings": findings_out,
+    }
+
+
+@app.post("/v1/apply-fix/{finding_id}")
+async def apply_fix_and_pr(
+    finding_id: str,
+    repo_path: str = "",
+    github_repo_url: str = "",
+    github_token: str = "",
+    branch: str = "main",
+    run_tests: bool = True,
+):
+    """Apply a fix for a specific finding and open a GitHub PR.
+
+    The fix is pattern-based — no AI API key required.
+    The patch is verified with 'git apply --check' before committing.
+    """
+    from agent.db import get_db
+    from agent.integrations.fix_generator import generate_fix
+    from agent.pr_engine import PREngine
+
+    db = get_db()
+    finding = db.get_finding(finding_id)
+    if not finding:
+        raise HTTPException(status_code=404, detail=f"Finding {finding_id} not found")
+
+    fix = generate_fix(finding)
+    if not fix:
+        raise HTTPException(
+            status_code=422,
+            detail="No pattern-based fix available for this finding type. "
+                   "Add OLLAMA_BASE_URL or an API key to enable AI fixes.",
+        )
+
+    token = github_token or os.environ.get("GITHUB_TOKEN", "")
+    if not token:
+        try:
+            from agent.vault import vault
+            token = vault.get("GITHUB_TOKEN") or ""
+        except Exception:
+            pass
+
+    if not token:
+        raise HTTPException(
+            status_code=400,
+            detail="GitHub token required. Set GITHUB_TOKEN in .env or store via: zerra vault set GITHUB_TOKEN",
+        )
+
+    if not repo_path or not github_repo_url:
+        raise HTTPException(status_code=400, detail="repo_path and github_repo_url are required")
+
+    from pathlib import Path
+    engine = PREngine(
+        github_token=token,
+        repo_url=github_repo_url,
+        repo_path=repo_path,
+        base_branch=branch,
+        max_prs=1,
+        run_tests=run_tests,
+        open_issues_for_unfixable=False,
+    )
+
+    # Create a minimal ScanResult to pass to engine.process
+    from agent.scanner.models import ScanResult as _SR, ScanMode, ScanStatus
+    from datetime import datetime, timezone as _tz
+    dummy_scan = _SR(
+        repo_url=repo_path,
+        branch=branch,
+        mode=ScanMode.STANDARD,
+        status=ScanStatus.COMPLETED,
+        started_at=datetime.now(_tz.utc),
+    )
+    dummy_scan.findings = [finding]
+
+    loop = asyncio.get_event_loop()
+    report = await loop.run_in_executor(None, engine.process, dummy_scan)
+
+    if report.prs_opened:
+        pr = report.prs_opened[0]
+        return {
+            "success": True,
+            "pr_url": pr.pr_url,
+            "pr_number": pr.pr_number,
+            "branch": pr.branch,
+            "finding_id": finding_id,
+        }
+    else:
+        return {
+            "success": False,
+            "finding_id": finding_id,
+            "error": "Fix could not be applied or tests failed after patch",
+        }
+
