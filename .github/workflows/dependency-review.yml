@@ -16,9 +16,34 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v7
 
+      - name: Check Dependency Graph availability
+        id: dependency-graph
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh api \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${GITHUB_REPOSITORY}/dependency-graph/sbom" \
+            > /tmp/dependency-graph-sbom.json \
+            2> /tmp/dependency-graph-check.err; then
+            echo "supported=true" >> "${GITHUB_OUTPUT}"
+          elif grep -Eq "HTTP 403|HTTP 404" /tmp/dependency-graph-check.err; then
+            echo "supported=false" >> "${GITHUB_OUTPUT}"
+          else
+            echo "Unexpected failure while checking dependency graph availability."
+            cat /tmp/dependency-graph-check.err
+            exit 1
+          fi
+
       - name: Dependency Review
+        if: steps.dependency-graph.outputs.supported == 'true'
         uses: actions/dependency-review-action@v5
         with:
           fail-on-severity: high
           comment-summary-in-pr: always
           deny-licenses: GPL-2.0, LGPL-2.0, AGPL-1.0
+
+      - name: Skip Dependency Review (Dependency Graph unavailable)
+        if: steps.dependency-graph.outputs.supported != 'true'
+        run: echo "::warning::Dependency Graph is unavailable for this repository, skipping dependency-review-action."
