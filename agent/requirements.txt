@@ -19,7 +19,7 @@ PyYAML>=6.0.2
 python-dotenv>=1.0.0
 
 # ── Security / Crypto ─────────────────────────────────────
-keyring>=25.0.0          # OS credential vault (Windows Credential Manager, macOS Keychain)
+keyring>=25.7.0          # OS credential vault (Windows Credential Manager, macOS Keychain)
 cryptography>=50.0.2     # AES-GCM local vault fallback
 
 # ── Notifications ─────────────────────────────────────────
