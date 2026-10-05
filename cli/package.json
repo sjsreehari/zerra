@@ -22,7 +22,7 @@
     "start": "tsx src/index.ts"
   },
   "dependencies": {
-    "commander": "^12.1.0",
+    "commander": "^15.0.0",
     "keytar": "^7.9.0"
   },
   "devDependencies": {
