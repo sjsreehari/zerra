@@ -19,8 +19,11 @@ func main() {
 	}
 	startTime = time.Now()
 	if len(os.Getenv("JWT_SECRET")) < 32 {
-		log.Println("JWT_SECRET missing or < 32 chars; using local development default secret")
-		os.Setenv("JWT_SECRET", "zerra_default_local_development_jwt_secret_32chars_minimum!")
+		log.Fatal(
+			"FATAL: JWT_SECRET is not set or is shorter than 32 characters.\n",
+			"Generate one with: openssl rand -hex 32\n",
+			"Then add it to your .env file as: JWT_SECRET=<generated_value>",
+		)
 	}
 
 	cfg := config{
