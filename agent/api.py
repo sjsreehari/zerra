@@ -76,6 +76,9 @@ def evaluate(event: CallEvent) -> DecisionResponse:
     metrics.record(decision=decision, latency_ms=latency_ms)
     if decision.risk_card:
         risk_cards.append(decision.risk_card)
+        # Evict oldest entries to prevent unbounded RAM growth
+        if len(risk_cards) > _MAX_RISK_CARDS:
+            del risk_cards[:-_MAX_RISK_CARDS]
     return decision
 
 

@@ -90,13 +90,16 @@ func (app *application) mount() http.Handler {
             return
         }
 
-        // Zero-Trust inference evaluation
+        // TODO(zero-trust): call inferenceClient to evaluate the request before
+        // forwarding.  Currently the client is unused and requests are forwarded
+        // unconditionally.  See GitHub issue #ZT-001.
         if os.Getenv("SKIP_INFERENCE") != "true" {
-            _ = inferenceClient
-            log.Printf("inference evaluation pending for %q (feature in development)", subdomain)
+            _ = inferenceClient // TODO: replace with real call to inference.Evaluate(c.Request)
+            log.Printf("[TODO] zero-trust inference not yet wired for %q — forwarding without evaluation", subdomain)
         } else {
-            log.Printf("skipping inference for %q (dev mode)", subdomain)
+            log.Printf("skipping inference for %q (SKIP_INFERENCE=true)", subdomain)
         }
+
 
         if err := proxyAdapter.Forward(c, route.ApiBaseUrl); err != nil {
             log.Printf("invalid upstream for %q: %v", subdomain, err)
