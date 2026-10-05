@@ -102,9 +102,12 @@ class SandboxOrchestrator:
         Steps:
         1. Copy repo to a temp directory.
         2. Apply the patch with ``git apply``.
-        3. Spin up a Docker container mounting the patched repo.
-        4. Run the test command inside.
-        5. Tear the container down unconditionally.
+        3. Run a dependency-install container (with network access) to cache
+           deps in a volume layer.
+        4. Run the test container with ``--network none`` (air-gapped), mounting
+           the repo read-only and providing a writable /tmp layer for build
+           artefacts such as ``__pycache__`` and ``.pytest_cache``.
+        5. Tear both containers down unconditionally.
 
         Returns a SandboxResult with success flag, exit code, and logs.
         """
@@ -151,11 +154,61 @@ class SandboxOrchestrator:
                         error="Patch could not be applied",
                     )
 
-            # 3. Build docker run command
+            # 3. Dependency-install step (network ON, writable, ephemeral)
+            # We create a named volume for the installed site-packages so the
+            # test container can reuse them without re-downloading.
+            deps_volume = f"zerra-deps-{uuid.uuid4().hex[:8]}"
+            install_cmd = _detect_install_command(patched)
+            if install_cmd:
+                logger.info(
+                    "Sandbox: installing deps with %s (network=bridge, image=%s)",
+                    install_cmd,
+                    config.image,
+                )
+                dep_run = subprocess.run(
+                    [
+                        "docker", "run", "--rm",
+                        "--name", f"zerra-install-{uuid.uuid4().hex[:8]}",
+                        "--label", "zerra.sandbox=true",
+                        "--memory", config.memory_limit,
+                        "--cpu-quota", str(config.cpu_quota),
+                        "--network", "bridge",  # needs internet for pip/npm
+                        "--workdir", "/workspace",
+                        "-v", f"{patched.resolve()}:/workspace:ro",
+                        "-v", f"{deps_volume}:/usr/local/lib/python-site",
+                        config.image,
+                        *install_cmd,
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=config.timeout_seconds,
+                )
+                if dep_run.returncode != 0:
+                    return SandboxResult(
+                        success=False,
+                        exit_code=dep_run.returncode,
+                        stdout=dep_run.stdout[-5_000:],
+                        stderr=dep_run.stderr[-5_000:],
+                        duration_seconds=time.perf_counter() - start,
+                        error="Dependency installation failed",
+                    )
+            else:
+                deps_volume = None
+
+            # 4. Test run — repo is read-only; writable /tmp for __pycache__ etc.
             container_name = f"zerra-sandbox-{uuid.uuid4().hex[:8]}"
             env_args: list[str] = []
             for k, v in config.extra_env.items():
                 env_args += ["-e", f"{k}={v}"]
+
+            vol_args = [
+                "-v", f"{patched.resolve()}:/workspace:ro",
+                # writable overlay so pytest/__pycache__ can be written
+                "--tmpfs", "/workspace/.pytest_cache:rw,size=64m",
+                "--tmpfs", "/tmp:rw,size=128m",
+            ]
+            if deps_volume:
+                vol_args += ["-v", f"{deps_volume}:/usr/local/lib/python-site:ro"]
 
             cmd = [
                 "docker", "run",
@@ -164,9 +217,9 @@ class SandboxOrchestrator:
                 "--label", "zerra.sandbox=true",
                 "--memory", config.memory_limit,
                 "--cpu-quota", str(config.cpu_quota),
-                "--network", config.network,
+                "--network", "none",   # air-gapped during test run
                 "--workdir", "/workspace",
-                "-v", f"{patched.resolve()}:/workspace:ro",
+                *vol_args,
                 *env_args,
                 config.image,
                 *config.test_command,

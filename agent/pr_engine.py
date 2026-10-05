@@ -107,8 +107,10 @@ def _run(cmd: list[str], cwd: str | Path, timeout: int = 60) -> subprocess.Compl
 
 
 def _apply_patch_locally(repo_path: Path, fix: FixSuggestion) -> tuple[bool, str]:
-    """Apply a code fix to the local repo using file writes (not git apply).
-    
+    """Apply a code fix to a file inside the repo using exact-match replacement.
+
+    Safety contract: raises ValueError (instead of silently modifying the wrong
+    occurrence) if the original snippet appears more than once in the file.
     Returns (success, error_message).
     """
     target = repo_path / fix.file_path
@@ -117,13 +119,19 @@ def _apply_patch_locally(repo_path: Path, fix: FixSuggestion) -> tuple[bool, str
 
     try:
         content = target.read_text(encoding="utf-8", errors="replace")
-        if fix.original_code and fix.original_code in content:
-            new_content = content.replace(fix.original_code, fix.fixed_code, 1)
-            target.write_text(new_content, encoding="utf-8")
-            return True, ""
-        else:
-            # Try line-based approach
+        if not fix.original_code:
+            return False, "No original_code snippet provided — cannot apply fix"
+        occurrences = content.count(fix.original_code)
+        if occurrences == 0:
             return False, f"Original code snippet not found verbatim in {fix.file_path}"
+        if occurrences > 1:
+            return False, (
+                f"Original code snippet appears {occurrences} times in {fix.file_path}; "
+                "refusing to apply to avoid corrupting the wrong occurrence"
+            )
+        new_content = content.replace(fix.original_code, fix.fixed_code, 1)
+        target.write_text(new_content, encoding="utf-8")
+        return True, ""
     except Exception as exc:
         return False, str(exc)
 
@@ -154,8 +162,18 @@ def _detect_test_command(repo_path: Path) -> list[str] | None:
     return None
 
 
+_TEST_NOT_FOUND_SENTINEL = "__test_runner_not_found__"
+
+
 def _run_tests(repo_path: Path) -> tuple[bool, str]:
-    """Run project tests. Returns (passed, output)."""
+    """Run project tests. Returns (passed, output).
+
+    IMPORTANT: If the test runner binary is not installed on this machine the
+    function returns (False, sentinel) so that the caller can distinguish
+    between "tests passed" and "tests were skipped because the runner is
+    missing".  This prevents the PR pipeline from claiming verification when
+    no verification actually occurred.
+    """
     cmd = _detect_test_command(repo_path)
     if not cmd:
         logger.info("No test command detected — skipping verification")
@@ -168,7 +186,12 @@ def _run_tests(repo_path: Path) -> tuple[bool, str]:
     except subprocess.TimeoutExpired:
         return False, "Test suite timed out (120s)"
     except FileNotFoundError:
-        return True, f"Test runner {cmd[0]} not found — skipping"
+        logger.warning(
+            "Test runner '%s' is not installed on this machine — "
+            "verification step was skipped (not passed).",
+            cmd[0],
+        )
+        return False, _TEST_NOT_FOUND_SENTINEL
 
 
 def _git_commit(repo_path: Path, file_path: str, message: str) -> tuple[bool, str]:
@@ -187,8 +210,11 @@ def _git_commit(repo_path: Path, file_path: str, message: str) -> tuple[bool, st
 
 
 def _git_push(repo_path: Path, branch: str, remote_url: str, token: str) -> tuple[bool, str]:
-    """Push branch to GitHub using the provided token."""
-    # Embed token in URL for authentication
+    """Push branch to GitHub using the provided token.
+
+    NOTE: does NOT use --force.  If the branch already exists on the remote
+    the push will fail rather than silently overwriting a peer's review branch.
+    """
     auth_url = remote_url
     if "github.com" in remote_url:
         auth_url = re.sub(
@@ -196,28 +222,44 @@ def _git_push(repo_path: Path, branch: str, remote_url: str, token: str) -> tupl
             f"https://{token}@github.com",
             remote_url,
         )
-    r = _run(["git", "push", auth_url, f"HEAD:refs/heads/{branch}", "--force"], repo_path, timeout=60)
+    r = _run(["git", "push", auth_url, f"HEAD:refs/heads/{branch}"], repo_path, timeout=60)
     if r.returncode != 0:
         return False, f"git push failed: {r.stderr}"
     return True, ""
 
 
-def _git_create_branch(repo_path: Path, branch: str) -> tuple[bool, str]:
-    """Create and checkout a new git branch."""
-    r = _run(["git", "checkout", "-b", branch], repo_path)
+# ── Safe worktree-based branch helpers ────────────────────────────────────────
+# These NEVER touch the developer's live working tree.  All branch creation and
+# test execution happen inside a temporary git worktree that is always cleaned
+# up on exit, regardless of success or failure.
+
+def _create_worktree(repo_path: Path, branch: str) -> tuple[Path | None, str]:
+    """Create a disposable git worktree for the fix branch.
+
+    Returns (worktree_path, error).  The worktree is a sibling of repo_path.
+    The caller MUST call _remove_worktree() when done.
+    """
+    import tempfile
+    wt_root = Path(tempfile.mkdtemp(prefix="zerra-wt-"))
+    r = _run(
+        ["git", "worktree", "add", "-b", branch, str(wt_root)],
+        repo_path,
+    )
     if r.returncode != 0:
-        # Branch might exist — try checking out
-        r = _run(["git", "checkout", branch], repo_path)
-    if r.returncode != 0:
-        return False, r.stderr
-    return True, ""
+        wt_root.rmdir()
+        return None, r.stderr.strip()
+    return wt_root, ""
 
 
-def _git_reset_branch(repo_path: Path, base_branch: str) -> None:
-    """Return to base branch and reset working tree."""
-    _run(["git", "checkout", base_branch], repo_path)
-    _run(["git", "reset", "--hard", "HEAD"], repo_path)
-    _run(["git", "clean", "-fd"], repo_path)
+def _remove_worktree(repo_path: Path, wt_path: Path) -> None:
+    """Remove a worktree and prune the reference from the main repo."""
+    _run(["git", "worktree", "remove", "--force", str(wt_path)], repo_path)
+    _run(["git", "worktree", "prune"], repo_path)
+    try:
+        import shutil
+        shutil.rmtree(wt_path, ignore_errors=True)
+    except Exception:
+        pass
 
 
 # ─── PR body builder ──────────────────────────────────────────────────────────
@@ -419,91 +461,99 @@ class PREngine:
         return report
 
     def _try_create_pr(self, finding: Finding, fix: FixSuggestion) -> Optional[PRResult]:
-        """Apply fix locally, verify, commit, push, open PR. Returns None on failure."""
-        branch_name = f"zerra/fix-{finding.id[:8]}"
-        base = self._base_branch
+    """Apply fix locally, verify, commit, push, open PR. Returns None on failure.
 
-        logger.info("Attempting PR for finding %s: %s", finding.id, finding.title)
+    All work happens inside a temporary git worktree so the developer's live
+    working tree is NEVER modified, reset, or cleaned.
+    """
+    branch_name = f"zerra/fix-{finding.id[:8]}"
 
-        # 1. Create a new branch
-        ok, err = _git_create_branch(self._repo_path, branch_name)
+    logger.info("Attempting PR for finding %s: %s", finding.id, finding.title)
+
+    # 1. Create an isolated worktree — this NEVER modifies the live tree
+    wt_path, err = _create_worktree(self._repo_path, branch_name)
+    if wt_path is None:
+        logger.warning("Could not create worktree for branch %s: %s", branch_name, err)
+        return None
+
+    try:
+        # 2. Apply the fix inside the worktree (safe — original tree untouched)
+        ok, err = _apply_patch_locally(wt_path, fix)
         if not ok:
-            logger.warning("Could not create branch %s: %s", branch_name, err)
-            _git_reset_branch(self._repo_path, base)
+            logger.warning("Patch apply failed for %s: %s", finding.id, err)
             return None
 
-        try:
-            # 2. Apply the fix to the file
-            ok, err = _apply_patch_locally(self._repo_path, fix)
-            if not ok:
-                logger.warning("Patch apply failed for %s: %s", finding.id, err)
-                return None
-
-            # 3. Run tests to verify no regressions
-            if self._run_tests:
-                tests_passed, test_output = _run_tests(self._repo_path)
-                if not tests_passed:
+        # 3. Run tests inside the worktree to verify no regressions
+        if self._run_tests:
+            tests_passed, test_output = _run_tests(wt_path)
+            if not tests_passed:
+                if test_output == _TEST_NOT_FOUND_SENTINEL:
                     logger.warning(
-                        "Tests failed after applying fix for %s — reverting\n%s",
+                        "Test runner not installed — skipping verification for %s "
+                        "(PR will not claim tests passed)",
+                        finding.id,
+                    )
+                    # Proceed but mark as unverified in the PR body
+                    test_output = "Test runner not installed on this machine; tests were not run."
+                else:
+                    logger.warning(
+                        "Tests failed after applying fix for %s — abandoning PR\n%s",
                         finding.id, test_output[:500],
                     )
-                    _git_reset_branch(self._repo_path, base)
                     return None
 
-            # 4. Commit the fix
-            commit_msg = (
-                f"fix: {finding.title}\n\n"
-                f"Security fix applied by Zerra.\n"
-                f"Vulnerability: {finding.vulnerability_type.value}\n"
-                f"Severity: {finding.severity.value.upper()}\n"
-                f"File: {finding.file_path}:{finding.line_start or '?'}\n"
-                f"CWE: {finding.cwe_id or 'N/A'}\n"
-                f"Finding-ID: {finding.id}"
-            )
-            ok, err = _git_commit(self._repo_path, fix.file_path, commit_msg)
-            if not ok:
-                logger.warning("git commit failed for %s: %s", finding.id, err)
-                _git_reset_branch(self._repo_path, base)
-                return None
-
-            # 5. Push the branch
-            ok, err = _git_push(self._repo_path, branch_name, self._repo_url, self._token)
-            if not ok:
-                logger.warning("git push failed for %s: %s", finding.id, err)
-                _git_reset_branch(self._repo_path, base)
-                return None
-
-            # 6. Open the PR via GitHub API
-            pr_title = f"fix({finding.severity.value}): {finding.title}"
-            pr_body = _build_pr_body(finding, fix)
-
-            pr = self._gh.create_pull_request(
-                self._owner, self._repo,
-                title=pr_title,
-                body=pr_body,
-                head_branch=branch_name,
-                base_branch=base,
-            )
-
-            logger.info(
-                "✅ PR #%s opened: %s",
-                pr.get("number"), pr.get("html_url"),
-            )
-            return PRResult(
-                finding_id=finding.id,
-                finding_title=finding.title,
-                branch=branch_name,
-                pr_url=pr.get("html_url", ""),
-                pr_number=pr.get("number", 0),
-                file_path=fix.file_path,
-            )
-
-        except Exception as exc:
-            logger.error("PR creation failed for finding %s: %s", finding.id, exc)
+        # 4. Commit the fix
+        commit_msg = (
+            f"fix: {finding.title}\n\n"
+            f"Security fix applied by Zerra.\n"
+            f"Vulnerability: {finding.vulnerability_type.value}\n"
+            f"Severity: {finding.severity.value.upper()}\n"
+            f"File: {finding.file_path}:{finding.line_start or '?'}\n"
+            f"CWE: {finding.cwe_id or 'N/A'}\n"
+            f"Finding-ID: {finding.id}"
+        )
+        ok, err = _git_commit(wt_path, fix.file_path, commit_msg)
+        if not ok:
+            logger.warning("git commit failed for %s: %s", finding.id, err)
             return None
-        finally:
-            # Always return to base branch
-            _git_reset_branch(self._repo_path, base)
+
+        # 5. Push the branch (no --force)
+        ok, err = _git_push(wt_path, branch_name, self._repo_url, self._token)
+        if not ok:
+            logger.warning("git push failed for %s: %s", finding.id, err)
+            return None
+
+        # 6. Open the PR via GitHub API
+        pr_title = f"fix({finding.severity.value}): {finding.title}"
+        pr_body = _build_pr_body(finding, fix)
+
+        pr = self._gh.create_pull_request(
+            self._owner, self._repo,
+            title=pr_title,
+            body=pr_body,
+            head_branch=branch_name,
+            base_branch=self._base_branch,
+        )
+
+        logger.info(
+            "\u2705 PR #%s opened: %s",
+            pr.get("number"), pr.get("html_url"),
+        )
+        return PRResult(
+            finding_id=finding.id,
+            finding_title=finding.title,
+            branch=branch_name,
+            pr_url=pr.get("html_url", ""),
+            pr_number=pr.get("number", 0),
+            file_path=fix.file_path,
+        )
+
+    except Exception as exc:
+        logger.error("PR creation failed for finding %s: %s", finding.id, exc)
+        return None
+    finally:
+        # Always clean up the worktree — the live tree is untouched throughout
+        _remove_worktree(self._repo_path, wt_path)
 
     def _create_issue(self, finding: Finding) -> Optional[IssueResult]:
         """Create a GitHub Issue for a finding that can't be auto-fixed."""
