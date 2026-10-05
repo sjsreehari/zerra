@@ -1,12 +1,23 @@
 # Zerra Docker Compose Stack
 # ─────────────────────────────────────────────────────────────────────────────
 # Quick start:
-#   cp .env.example .env   # fill in JWT_SECRET at minimum
+#   cp .env.example .env   # set JWT_SECRET (required) — see .env.example
 #   docker compose up -d
 #   open http://localhost:3000
 #
-# Production with pre-built images (after a tagged release):
-#   ZERRA_VERSION=0.2.0 docker compose up -d
+# What this stack runs:
+#   - inference   : Zerra AI Agent (FastAPI / Python)  — the scanner & fix engine
+#   - gateway     : Go auth + API gateway (JWT, CORS)
+#   - dashboard   : Next.js local dashboard on :3000
+#   - postgres    : Persistent database for scans/findings
+#   - nginx       : Reverse proxy (optional, binds :80)
+#
+# What this stack does NOT run:
+#   - No upstream mock server (removed — was a legacy prototype artefact)
+#   - No demo invoice API (removed — was not part of the scanner product)
+#
+# NOTE: JWT_SECRET must be set to a random string >= 32 characters.
+#       Generate one with:  openssl rand -hex 32
 # ─────────────────────────────────────────────────────────────────────────────
 
 x-restart: &restart
@@ -39,6 +50,13 @@ services:
       - ./backend/migrations:/docker-entrypoint-initdb.d:ro
 
   # ── Zerra AI Agent (FastAPI / Python) ──────────────────────────────────────
+  #
+  # This is the core of Zerra: the scanner, fix engine, and PR engine.
+  # It exposes the REST API consumed by the dashboard and CLI.
+  #
+  # Docker socket access is required so the agent can spin up sandbox
+  # containers for patch verification.  Access is limited to the Docker socket
+  # only; the container does not run with --privileged.
   inference:
     build:
       context: .
@@ -68,17 +86,8 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - zerra_vault:/root/.zerra
-
-  # ── Upstream mock / demo API ────────────────────────────────────────────────
-  upstream:
-    build:
-      context: .
-      dockerfile: agent/Dockerfile
-    image: ${ZERRA_INFERENCE_IMAGE:-ghcr.io/sjsreehari/zerra-inference}:${ZERRA_VERSION:-latest}
-    <<: [*restart, *logging]
-    command: ["python", "-m", "uvicorn", "agent.upstream_api:app", "--host", "0.0.0.0", "--port", "8001"]
-    expose:
-      - "8001"
+      # Docker socket so the agent can create sandbox containers
+      - /var/run/docker.sock:/var/run/docker.sock:ro
 
   # ── Zerra Gateway (Go / Auth / Proxy) ──────────────────────────────────────
   gateway:
@@ -93,7 +102,7 @@ services:
       ZERRA_INFERENCE_ENABLED: ${ZERRA_INFERENCE_ENABLED:-true}
       BASE_DOMAIN: ${BASE_DOMAIN:-localhost}
       ENVIRONMENT: ${ENVIRONMENT:-development}
-      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env (min 32 chars)}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env — run: openssl rand -hex 32}
       JWT_TTL_HOURS: ${JWT_TTL_HOURS:-24}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       LOG_LEVEL: ${LOG_LEVEL:-info}
