@@ -461,99 +461,99 @@ class PREngine:
         return report
 
     def _try_create_pr(self, finding: Finding, fix: FixSuggestion) -> Optional[PRResult]:
-    """Apply fix locally, verify, commit, push, open PR. Returns None on failure.
+        """Apply fix locally, verify, commit, push, open PR. Returns None on failure.
 
-    All work happens inside a temporary git worktree so the developer's live
-    working tree is NEVER modified, reset, or cleaned.
-    """
-    branch_name = f"zerra/fix-{finding.id[:8]}"
+        All work happens inside a temporary git worktree so the developer's live
+        working tree is NEVER modified, reset, or cleaned.
+        """
+        branch_name = f"zerra/fix-{finding.id[:8]}"
 
-    logger.info("Attempting PR for finding %s: %s", finding.id, finding.title)
+        logger.info("Attempting PR for finding %s: %s", finding.id, finding.title)
 
-    # 1. Create an isolated worktree — this NEVER modifies the live tree
-    wt_path, err = _create_worktree(self._repo_path, branch_name)
-    if wt_path is None:
-        logger.warning("Could not create worktree for branch %s: %s", branch_name, err)
-        return None
-
-    try:
-        # 2. Apply the fix inside the worktree (safe — original tree untouched)
-        ok, err = _apply_patch_locally(wt_path, fix)
-        if not ok:
-            logger.warning("Patch apply failed for %s: %s", finding.id, err)
+        # 1. Create an isolated worktree — this NEVER modifies the live tree
+        wt_path, err = _create_worktree(self._repo_path, branch_name)
+        if wt_path is None:
+            logger.warning("Could not create worktree for branch %s: %s", branch_name, err)
             return None
 
-        # 3. Run tests inside the worktree to verify no regressions
-        if self._run_tests:
-            tests_passed, test_output = _run_tests(wt_path)
-            if not tests_passed:
-                if test_output == _TEST_NOT_FOUND_SENTINEL:
-                    logger.warning(
-                        "Test runner not installed — skipping verification for %s "
-                        "(PR will not claim tests passed)",
-                        finding.id,
-                    )
-                    # Proceed but mark as unverified in the PR body
-                    test_output = "Test runner not installed on this machine; tests were not run."
-                else:
-                    logger.warning(
-                        "Tests failed after applying fix for %s — abandoning PR\n%s",
-                        finding.id, test_output[:500],
-                    )
-                    return None
+        try:
+            # 2. Apply the fix inside the worktree (safe — original tree untouched)
+            ok, err = _apply_patch_locally(wt_path, fix)
+            if not ok:
+                logger.warning("Patch apply failed for %s: %s", finding.id, err)
+                return None
 
-        # 4. Commit the fix
-        commit_msg = (
-            f"fix: {finding.title}\n\n"
-            f"Security fix applied by Zerra.\n"
-            f"Vulnerability: {finding.vulnerability_type.value}\n"
-            f"Severity: {finding.severity.value.upper()}\n"
-            f"File: {finding.file_path}:{finding.line_start or '?'}\n"
-            f"CWE: {finding.cwe_id or 'N/A'}\n"
-            f"Finding-ID: {finding.id}"
-        )
-        ok, err = _git_commit(wt_path, fix.file_path, commit_msg)
-        if not ok:
-            logger.warning("git commit failed for %s: %s", finding.id, err)
+            # 3. Run tests inside the worktree to verify no regressions
+            if self._run_tests:
+                tests_passed, test_output = _run_tests(wt_path)
+                if not tests_passed:
+                    if test_output == _TEST_NOT_FOUND_SENTINEL:
+                        logger.warning(
+                            "Test runner not installed — skipping verification for %s "
+                            "(PR will not claim tests passed)",
+                            finding.id,
+                        )
+                        # Proceed but mark as unverified in the PR body
+                        test_output = "Test runner not installed on this machine; tests were not run."
+                    else:
+                        logger.warning(
+                            "Tests failed after applying fix for %s — abandoning PR\n%s",
+                            finding.id, test_output[:500],
+                        )
+                        return None
+
+            # 4. Commit the fix
+            commit_msg = (
+                f"fix: {finding.title}\n\n"
+                f"Security fix applied by Zerra.\n"
+                f"Vulnerability: {finding.vulnerability_type.value}\n"
+                f"Severity: {finding.severity.value.upper()}\n"
+                f"File: {finding.file_path}:{finding.line_start or '?'}\n"
+                f"CWE: {finding.cwe_id or 'N/A'}\n"
+                f"Finding-ID: {finding.id}"
+            )
+            ok, err = _git_commit(wt_path, fix.file_path, commit_msg)
+            if not ok:
+                logger.warning("git commit failed for %s: %s", finding.id, err)
+                return None
+
+            # 5. Push the branch (no --force)
+            ok, err = _git_push(wt_path, branch_name, self._repo_url, self._token)
+            if not ok:
+                logger.warning("git push failed for %s: %s", finding.id, err)
+                return None
+
+            # 6. Open the PR via GitHub API
+            pr_title = f"fix({finding.severity.value}): {finding.title}"
+            pr_body = _build_pr_body(finding, fix)
+
+            pr = self._gh.create_pull_request(
+                self._owner, self._repo,
+                title=pr_title,
+                body=pr_body,
+                head_branch=branch_name,
+                base_branch=self._base_branch,
+            )
+
+            logger.info(
+                "✅ PR #%s opened: %s",
+                pr.get("number"), pr.get("html_url"),
+            )
+            return PRResult(
+                finding_id=finding.id,
+                finding_title=finding.title,
+                branch=branch_name,
+                pr_url=pr.get("html_url", ""),
+                pr_number=pr.get("number", 0),
+                file_path=fix.file_path,
+            )
+
+        except Exception as exc:
+            logger.error("PR creation failed for finding %s: %s", finding.id, exc)
             return None
-
-        # 5. Push the branch (no --force)
-        ok, err = _git_push(wt_path, branch_name, self._repo_url, self._token)
-        if not ok:
-            logger.warning("git push failed for %s: %s", finding.id, err)
-            return None
-
-        # 6. Open the PR via GitHub API
-        pr_title = f"fix({finding.severity.value}): {finding.title}"
-        pr_body = _build_pr_body(finding, fix)
-
-        pr = self._gh.create_pull_request(
-            self._owner, self._repo,
-            title=pr_title,
-            body=pr_body,
-            head_branch=branch_name,
-            base_branch=self._base_branch,
-        )
-
-        logger.info(
-            "\u2705 PR #%s opened: %s",
-            pr.get("number"), pr.get("html_url"),
-        )
-        return PRResult(
-            finding_id=finding.id,
-            finding_title=finding.title,
-            branch=branch_name,
-            pr_url=pr.get("html_url", ""),
-            pr_number=pr.get("number", 0),
-            file_path=fix.file_path,
-        )
-
-    except Exception as exc:
-        logger.error("PR creation failed for finding %s: %s", finding.id, exc)
-        return None
-    finally:
-        # Always clean up the worktree — the live tree is untouched throughout
-        _remove_worktree(self._repo_path, wt_path)
+        finally:
+            # Always clean up the worktree — the live tree is untouched throughout
+            _remove_worktree(self._repo_path, wt_path)
 
     def _create_issue(self, finding: Finding) -> Optional[IssueResult]:
         """Create a GitHub Issue for a finding that can't be auto-fixed."""
