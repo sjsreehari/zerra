@@ -22,10 +22,6 @@ jobs:
             dockerfile: agent/Dockerfile
             image: ghcr.io/sjsreehari/zerra-inference
             platforms: linux/amd64,linux/arm64
-          - context: ./backend
-            dockerfile: backend/Dockerfile
-            image: ghcr.io/sjsreehari/zerra-gateway
-            platforms: linux/amd64,linux/arm64
           - context: ./frontend
             dockerfile: frontend/Dockerfile
             image: ghcr.io/sjsreehari/zerra-dashboard
