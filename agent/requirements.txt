@@ -15,7 +15,7 @@ aiohttp>=3.9.0
 # SQLite is built-in; no extra package needed
 
 # ── Config / YAML ────────────────────────────────────────
-PyYAML>=6.0.2
+PyYAML>=6.0.3
 python-dotenv>=1.0.0
 
 # ── Security / Crypto ─────────────────────────────────────
