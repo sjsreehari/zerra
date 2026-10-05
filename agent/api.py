@@ -46,12 +46,27 @@ app.add_middleware(
 )
 engine, metrics = create_demo_engine()
 data = MockDataStore()
-risk_cards = []
-investigations = {}
-recommendations = {}
+
+# ── In-memory session state ────────────────────────────────────────────────────
+# WARNING: these collections are NOT persisted to the database.  All data is
+# lost when the process restarts.  This is a known limitation — see issue #XX.
+# TODO: persist risk_cards and investigations to the DB (use agent/db/).
+#
+# risk_cards is capped at _MAX_RISK_CARDS to prevent unbounded RAM growth.
+_MAX_RISK_CARDS = 1000
+risk_cards: list = []
+investigations: dict = {}
+recommendations: dict = {}
 pentest_orchestrators: dict[str, PentestOrchestrator] = {}
 threat_hunter = ThreatHunter()
 recommendation_service = PolicyRecommendationService()
+
+import logging as _logging
+_logging.getLogger(__name__).warning(
+    "Zerra agent started. NOTE: risk_cards, investigations and recommendations "
+    "are held in memory only and will be lost on restart. "
+    "See TODO in api.py to persist these to the database."
+)
 
 
 def evaluate(event: CallEvent) -> DecisionResponse:
