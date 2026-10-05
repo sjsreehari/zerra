@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { isDockerDaemonRunning } from "../src/docker.js";
+import { isGitIdentityConfigured } from "../src/git.js";
 
 describe("CLI init", () => {
   it("starts the stack with docker compose and checks the daemon first", () => {
@@ -40,5 +41,34 @@ describe("isDockerDaemonRunning", () => {
     };
     expect(isDockerDaemonRunning(run)).toBe(true);
     expect(calls).toEqual([["docker", "info"]]);
+  });
+});
+
+describe("Git user identity", () => {
+  it("checks the effective user name and email", () => {
+    const calls: string[] = [];
+    const run = (command: string) => {
+      calls.push(command);
+      return command.endsWith("user.name") ? "  Test User\n" : "test@example.com\n";
+    };
+    expect(isGitIdentityConfigured(run)).toBe(true);
+    expect(calls).toEqual(["git config user.name", "git config user.email"]);
+  });
+
+  it.each(["user.name", "user.email"])("rejects a blank %s", (key) => {
+    const run = (command: string) => command.endsWith(key) ? " \n" : "configured\n";
+    expect(isGitIdentityConfigured(run)).toBe(false);
+  });
+
+  it.each(["user.name", "user.email"])("handles an unset %s", (key) => {
+    const run = (command: string) => {
+      if (command.endsWith(key)) throw new Error("git config exited 1");
+      return "configured\n";
+    };
+    expect(isGitIdentityConfigured(run)).toBe(false);
+  });
+
+  it("handles Git being unavailable", () => {
+    expect(isGitIdentityConfigured(() => { throw new Error("git not found"); })).toBe(false);
   });
 });
