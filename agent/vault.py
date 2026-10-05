@@ -74,26 +74,89 @@ def _keyring_delete(key: str) -> None:
 
 # ── File-based AES-256-GCM vault ──────────────────────────────────────────
 
-def _derive_key(master: bytes) -> bytes:
-    """Derive a 32-byte AES key from the master secret using SHA-256."""
+# Key derivation parameters (scrypt RFC 7914)
+_SCRYPT_N = 2**17   # CPU/memory cost factor (128 KB per block)
+_SCRYPT_R = 8       # Block size
+_SCRYPT_P = 1       # Parallelisation factor
+_KEY_LEN   = 32     # 256-bit AES key
+
+# The salt file lives in a DIFFERENT directory from the vault file so that
+# possession of just the vault file is insufficient to decrypt it.
+_SALT_FILE = Path(os.environ.get(
+    "ZERRA_VAULT_SALT_PATH",
+    Path.home() / ".config" / "zerra" / ".salt",
+))
+
+
+def _derive_key(master: bytes, salt: bytes) -> bytes:
+    """Derive a 256-bit AES key using scrypt (as documented in the README)."""
     import hashlib
-    return hashlib.sha256(master).digest()
+    return hashlib.scrypt(
+        master,
+        salt=salt,
+        n=_SCRYPT_N,
+        r=_SCRYPT_R,
+        p=_SCRYPT_P,
+        dklen=_KEY_LEN,
+    )
 
 
-def _get_master_key() -> bytes:
-    """Get or create a per-machine master key stored in an env var or a key file."""
+def _get_salt() -> bytes:
+    """Get or create the scrypt salt.  Stored in a separate directory from the vault."""
+    if _SALT_FILE.exists():
+        return base64.b64decode(_SALT_FILE.read_text().strip())
+    salt = secrets.token_bytes(32)
+    _SALT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _SALT_FILE.write_text(base64.b64encode(salt).decode())
+    try:
+        _SALT_FILE.chmod(0o600)
+    except NotImplementedError:
+        pass  # Windows — chmod is a no-op; use keyring instead (see warning below)
+    logger.info("Generated new vault salt at %s", _SALT_FILE)
+    return salt
+
+
+def _get_master_secret() -> bytes:
+    """Get the master secret from env or generate a per-machine one.
+
+    On Windows, os.chmod is a no-op for POSIX permissions, so the file-based
+    vault fallback is less secure.  Users on Windows are strongly encouraged to
+    rely on the OS keychain (keyring) backend instead, which Zerra prefers
+    automatically when available.
+    """
+    import platform as _platform
     raw = os.environ.get("ZERRA_VAULT_KEY")
     if raw:
+        # Caller supplied an explicit secret — use it directly as the master.
         return base64.b64decode(raw)
-    key_file = _VAULT_FILE.parent / ".key"
-    if key_file.exists():
-        return base64.b64decode(key_file.read_text().strip())
-    # Generate a new machine key
+
+    # Machine-local secret: stored in a file SEPARATE from the vault and salt.
+    secret_file = Path(os.environ.get(
+        "ZERRA_VAULT_SECRET_PATH",
+        Path.home() / ".config" / "zerra" / ".vault_secret",
+    ))
+    if secret_file.exists():
+        return base64.b64decode(secret_file.read_text().strip())
+
+    if _platform.system() == "Windows":
+        logger.warning(
+            "Zerra vault: running on Windows without ZERRA_VAULT_KEY set. "
+            "File permissions (0o600) are not enforced on Windows. "
+            "Install 'keyring' and ensure a backend is configured to use the "
+            "Windows Credential Manager instead."
+        )
+
     master = secrets.token_bytes(32)
-    key_file.parent.mkdir(parents=True, exist_ok=True)
-    key_file.write_text(base64.b64encode(master).decode())
-    key_file.chmod(0o600)
-    logger.info("Generated new vault master key at %s", key_file)
+    secret_file.parent.mkdir(parents=True, exist_ok=True)
+    secret_file.write_text(base64.b64encode(master).decode())
+    try:
+        secret_file.chmod(0o600)
+    except NotImplementedError:
+        pass
+    logger.info(
+        "Generated new vault master secret at %s (keep this file secret)",
+        secret_file,
+    )
     return master
 
 
@@ -106,7 +169,7 @@ def _file_load() -> dict[str, str]:
         raw = base64.b64decode(_VAULT_FILE.read_bytes())
         # Format: nonce(12) + ciphertext
         nonce, ciphertext = raw[:12], raw[12:]
-        key = _derive_key(_get_master_key())
+        key = _derive_key(_get_master_secret(), _get_salt())
         plaintext = AESGCM(key).decrypt(nonce, ciphertext, None)
         return json.loads(plaintext.decode("utf-8"))
     except Exception as exc:
@@ -119,12 +182,15 @@ def _file_save(data: dict[str, str]) -> None:
     try:
         from cryptography.hazmat.primitives.ciphers.aead import AESGCM
         plaintext = json.dumps(data).encode("utf-8")
-        key = _derive_key(_get_master_key())
+        key = _derive_key(_get_master_secret(), _get_salt())
         nonce = secrets.token_bytes(12)
         ciphertext = AESGCM(key).encrypt(nonce, plaintext, None)
         _VAULT_FILE.parent.mkdir(parents=True, exist_ok=True)
         _VAULT_FILE.write_bytes(base64.b64encode(nonce + ciphertext))
-        _VAULT_FILE.chmod(0o600)
+        try:
+            _VAULT_FILE.chmod(0o600)
+        except NotImplementedError:
+            pass  # Windows — no POSIX permissions
     except Exception as exc:
         logger.error("Failed to write vault file: %s", exc)
         raise
