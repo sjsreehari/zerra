@@ -59,9 +59,6 @@ test-py: ## Run Python agent tests
 test-py-fast: ## Run Python agent tests (fast mode, no output capture)
 	python -m pytest agent/tests/ -v -x -s --asyncio-mode=auto
 
-test-go: ## Run Go backend tests
-	cd backend && go test ./... -v -race -timeout 120s
-
 test-ts: ## Run TypeScript unit tests (Vitest)
 	npm run test:unit
 
@@ -69,7 +66,6 @@ test-ts: ## Run TypeScript unit tests (Vitest)
 
 lint: ## Lint all code
 	cd frontend && npm run lint
-	cd backend && go vet ./...
 
 format-py: ## Format Python code with black
 	python -m black agent/
@@ -113,4 +109,3 @@ doctor: ## Check all prerequisites
 	@command -v git >/dev/null 2>&1 && echo "✓ git" || echo "✗ git — https://git-scm.com/downloads"
 	@command -v python >/dev/null 2>&1 && echo "✓ python ($(shell python --version 2>&1))" || echo "✗ python"
 	@command -v node >/dev/null 2>&1 && echo "✓ node ($(shell node --version 2>&1))" || echo "✗ node — https://nodejs.org"
-	@command -v go >/dev/null 2>&1 && echo "✓ go ($(shell go version 2>&1 | awk '{print $$3}'))" || echo "  go not found (only needed for backend dev)"
