@@ -1,23 +1,12 @@
 # Zerra Docker Compose Stack
 # ─────────────────────────────────────────────────────────────────────────────
 # Quick start:
-#   cp .env.example .env   # set JWT_SECRET (required) — see .env.example
 #   docker compose up -d
 #   open http://localhost:3000
 #
-# What this stack runs:
-#   - inference   : Zerra AI Agent (FastAPI / Python)  — the scanner & fix engine
-#   - gateway     : Go auth + API gateway (JWT, CORS)
-#   - dashboard   : Next.js local dashboard on :3000
-#   - postgres    : Persistent database for scans/findings
-#   - nginx       : Reverse proxy (optional, binds :80)
-#
-# What this stack does NOT run:
-#   - No upstream mock server (removed — was a legacy prototype artefact)
-#   - No demo invoice API (removed — was not part of the scanner product)
-#
-# NOTE: JWT_SECRET must be set to a random string >= 32 characters.
-#       Generate one with:  openssl rand -hex 32
+# Services:
+#   - inference : Zerra Agent (FastAPI / Python) — scanner, fix & PR engine on :8000
+#   - dashboard : Zerra Dashboard (Next.js) on :3000
 # ─────────────────────────────────────────────────────────────────────────────
 
 x-restart: &restart
@@ -32,31 +21,8 @@ x-logging: &logging
 
 services:
 
-  # ── PostgreSQL 16 ───────────────────────────────────────────────────────────
-  postgres:
-    image: postgres:16-alpine
-    <<: [*restart, *logging]
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-zerra}
-      POSTGRES_USER: ${POSTGRES_USER:-zerra}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-zerra}
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
-      interval: 3s
-      timeout: 3s
-      retries: 20
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./backend/migrations:/docker-entrypoint-initdb.d:ro
-
-  # ── Zerra AI Agent (FastAPI / Python) ──────────────────────────────────────
-  #
-  # This is the core of Zerra: the scanner, fix engine, and PR engine.
-  # It exposes the REST API consumed by the dashboard and CLI.
-  #
-  # Docker socket access is required so the agent can spin up sandbox
-  # containers for patch verification.  Access is limited to the Docker socket
-  # only; the container does not run with --privileged.
+  # ── Zerra Agent / Inference Engine ──────────────────────────────────────────
+  # The core scanner, AST engine, fix generator, and auto-PR opener.
   inference:
     build:
       context: .
@@ -81,45 +47,13 @@ services:
       interval: 5s
       timeout: 5s
       retries: 30
-      start_period: 20s
+      start_period: 15s
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
       - zerra_vault:/root/.zerra
-      # Docker socket so the agent can create sandbox containers
+      # Docker socket so the agent can create isolated sandbox containers for verification
       - /var/run/docker.sock:/var/run/docker.sock:ro
-
-  # ── Zerra Gateway (Go / Auth / Proxy) ──────────────────────────────────────
-  gateway:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    image: ${ZERRA_GATEWAY_IMAGE:-ghcr.io/sjsreehari/zerra-gateway}:${ZERRA_VERSION:-latest}
-    <<: [*restart, *logging]
-    environment:
-      DB_CONN_STR: ${DB_CONN_STR:-postgresql://zerra:zerra@postgres:5432/zerra}
-      ZERRA_INFERENCE_URL: ${ZERRA_INFERENCE_URL:-http://inference:8000}
-      ZERRA_INFERENCE_ENABLED: ${ZERRA_INFERENCE_ENABLED:-true}
-      BASE_DOMAIN: ${BASE_DOMAIN:-localhost}
-      ENVIRONMENT: ${ENVIRONMENT:-development}
-      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env — run: openssl rand -hex 32}
-      JWT_TTL_HOURS: ${JWT_TTL_HOURS:-24}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
-      LOG_LEVEL: ${LOG_LEVEL:-info}
-    ports:
-      - "${ZERRA_GATEWAY_PORT:-8080}:8080"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      inference:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health || exit 1"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
 
   # ── Zerra Dashboard (Next.js) ───────────────────────────────────────────────
   dashboard:
@@ -128,18 +62,14 @@ services:
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_ZERRA_URL: ${NEXT_PUBLIC_ZERRA_URL:-http://localhost:8000}
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
     image: ${ZERRA_DASHBOARD_IMAGE:-ghcr.io/sjsreehari/zerra-dashboard}:${ZERRA_VERSION:-latest}
     <<: [*restart, *logging]
     ports:
       - "${ZERRA_DASHBOARD_PORT:-3000}:3000"
     environment:
       NEXT_PUBLIC_ZERRA_URL: ${NEXT_PUBLIC_ZERRA_URL:-http://localhost:8000}
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
     depends_on:
       inference:
-        condition: service_healthy
-      gateway:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:3000/ || exit 1"]
@@ -148,20 +78,6 @@ services:
       retries: 15
       start_period: 30s
 
-  # ── Nginx reverse proxy ─────────────────────────────────────────────────────
-  nginx:
-    image: nginx:alpine
-    <<: [*restart, *logging]
-    ports:
-      - "80:80"
-    volumes:
-      - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
-    depends_on:
-      - gateway
-      - dashboard
-
 volumes:
-  postgres_data:
-    name: zerra_postgres_data
   zerra_vault:
     name: zerra_vault_data

@@ -272,17 +272,13 @@ export default function SecurityScansPage() {
     setLoadingJobs(false);
   }, [fetchJobs]);
 
-  // Load proxies and initial jobs
+  // Initial jobs
   useEffect(() => {
     void (async () => {
-      const routes = await fetchProxies(APIENDPOINT.Proxy);
-      if (Array.isArray(routes)) {
-        setProxies(routes);
-        if (routes.length > 0) setSelectedSubdomain(routes[0].subdomain);
-      }
+      setProxies([]);
       await loadJobs();
     })();
-  }, [fetchProxies, loadJobs]);
+  }, [loadJobs]);
 
   // Poll while any job is running/queued
   useEffect(() => {

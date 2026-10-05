@@ -150,7 +150,6 @@ program
       ["git installed", () => { try { execSync("git --version", { stdio: "pipe" }); return true; } catch { return false; } }, "https://git-scm.com/downloads"],
       ["Node.js 18+", () => { try { const v = execSync("node --version", { encoding: "utf8" }).trim(); return parseInt(v.slice(1)) >= 18; } catch { return false; } }, "https://nodejs.org"],
       ["Zerra inference API", async () => { try { const res = await fetch("http://localhost:8000/health", { signal: AbortSignal.timeout(2000) }); return res.ok; } catch { return false; } }, "Run: zerra init"],
-      ["Zerra gateway", async () => { try { const res = await fetch("http://localhost:8080/health", { signal: AbortSignal.timeout(2000) }); return res.ok || res.status < 500; } catch { return false; } }, "Run: zerra init"],
     ];
 
     let allOk = true;
