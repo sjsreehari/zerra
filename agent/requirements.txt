@@ -20,7 +20,7 @@ python-dotenv>=1.0.0
 
 # ── Security / Crypto ─────────────────────────────────────
 keyring>=25.0.0          # OS credential vault (Windows Credential Manager, macOS Keychain)
-cryptography>=43.0.0     # AES-GCM local vault fallback
+cryptography>=50.0.2     # AES-GCM local vault fallback
 
 # ── Notifications ─────────────────────────────────────────
 # All notification channels use stdlib (urllib, smtplib) — no extra dep
