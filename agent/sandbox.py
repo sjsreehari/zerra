@@ -85,6 +85,25 @@ class SandboxConfig:
     extra_env: dict[str, str] = field(default_factory=dict)
 
 
+# ── Dep-install detection ─────────────────────────────────────────────────
+
+def _detect_install_command(repo_path: Path) -> list[str] | None:
+    """Return the install command for the project, or None if not detectable.
+
+    The install is run in a separate container with network access so that
+    pip/npm can download packages.  The test container runs without network.
+    """
+    if (repo_path / "requirements.txt").exists():
+        return ["pip", "install", "--quiet", "-r", "requirements.txt"]
+    if (repo_path / "pyproject.toml").exists():
+        return ["pip", "install", "--quiet", "-e", "."]
+    if (repo_path / "setup.py").exists():
+        return ["pip", "install", "--quiet", "-e", "."]
+    if (repo_path / "package.json").exists():
+        return ["npm", "ci", "--prefer-offline"]
+    return None
+
+
 # ── Orchestrator ──────────────────────────────────────────────────────────
 
 class SandboxOrchestrator:
@@ -286,8 +305,15 @@ class SandboxOrchestrator:
                 error=str(exc),
             )
         finally:
-            # 5. Always remove the temp workspace
+            # 5. Always remove the temp workspace AND the ephemeral deps volume
             shutil.rmtree(work_dir, ignore_errors=True)
+            if "deps_volume" in dir() and deps_volume:
+                subprocess.run(
+                    ["docker", "volume", "rm", "-f", deps_volume],
+                    capture_output=True,
+                    timeout=15,
+                )
+
 
     def cleanup_stale_containers(self, max_age_minutes: int = 30) -> int:
         """Remove any lingering zerra sandbox containers older than max_age_minutes."""
