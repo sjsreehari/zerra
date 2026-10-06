@@ -183,3 +183,8 @@ If you discover a security vulnerability in Zerra, please do not file a public i
 ## License
 
 Zerra is distributed under the **GNU General Public License v3.0**. See [LICENSE](LICENSE) for details.
+
+The scanner library falls back to direct dependency manifests when Syft cannot
+start, exits with an error, or returns invalid JSON. Fallback output includes a
+warning: version ranges are approximate and transitive dependencies are unavailable.
+Successful Syft output is preserved.
