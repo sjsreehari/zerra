@@ -200,8 +200,13 @@ def _fix_pickle(finding: Finding, snippet: str) -> FixSuggestion:
     return FixSuggestion(
         file_path=finding.file_path or "",
         original_code=snippet,
-        fixed_code=snippet.replace("pickle.load", "json.load").replace(
-            "pickle.loads", "json.loads"
+        fixed_code=(
+            # `_pickle` first: replacing "pickle.loads" first would leave a
+            # dangling underscore in "_json.loads".
+            snippet.replace("_pickle.loads", "json.loads")
+            .replace("_pickle.load", "json.load")
+            .replace("pickle.loads", "json.loads")
+            .replace("pickle.load", "json.load")
         ),
         explanation="Replace pickle with JSON for data serialization. "
                     "pickle can execute arbitrary code during deserialization.",

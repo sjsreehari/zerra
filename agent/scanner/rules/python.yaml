@@ -79,6 +79,20 @@ rules:
     fix_hint: "Never unpickle data from untrusted sources. Use JSON or MessagePack instead."
     confidence: 0.85
 
+  - id: zerra/python/unsafe-deserialization-pickle
+    title: "Insecure Deserialization via pickle"
+    description: "Unpickling data from an untrusted source can execute arbitrary code. Use safe serialization formats such as json, protobuf or msgpack."
+    severity: critical
+    # `pickle.load/loads` is already reported by zerra/python/pickle-load above;
+    # this rule covers the module forms that rule misses (_pickle.load/loads and
+    # pickle.Unpickler) so one line never produces two findings.
+    pattern: '(?:pickle|_pickle)\s*\.\s*Unpickler\s*\(|_pickle\s*\.\s*loads?\s*\('
+    languages: [python]
+    cwe_id: "CWE-502"
+    owasp_category: "A08:2021 Software and Data Integrity Failures"
+    fix_hint: "Avoid unpickling data from untrusted sources. Use safe serialization formats such as json, protobuf, or msgpack."
+    confidence: 0.85
+
   - id: zerra/python/yaml-unsafe-load
     title: "Unsafe YAML Loading"
     description: "yaml.load() without Loader=SafeLoader can execute arbitrary Python objects."
